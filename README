@@ -1,0 +1,10 @@
+go-sim
+======
+
+Starting a modular simulation library for networked services. There is
+a configuration to specify the network and the characteristics of the
+various nodes (queue size, self-time latency distribution, failure
+distribution, etc.), and the distribution to be used for input load.
+
+The links between nodes will be channels, and the elapsing of time
+will be marked by editing the stuff passed thru the channels.
