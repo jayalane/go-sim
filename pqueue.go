@@ -14,17 +14,17 @@ type Item struct {
 	index int // The index of the item in the heap.
 }
 
-// A PriorityQueue implements heap.Interface and holds Items.
-type PriorityQueue []*Item
+// A PQueue implements heap.Interface and holds Items.
+type PQueue []*Item
 
-func (pq PriorityQueue) Len() int { return len(pq) }
+func (pq PQueue) Len() int { return len(pq) }
 
-func (pq PriorityQueue) Less(i, j int) bool {
+func (pq PQueue) Less(i, j int) bool {
 	// We want Pop to give us the highest, not lowest, priority so we use greater than here.
 	return pq[i].priority > pq[j].priority
 }
 
-func (pq PriorityQueue) Swap(i, j int) {
+func (pq PQueue) Swap(i, j int) {
 	pq[i], pq[j] = pq[j], pq[i]
 	pq[i].index = i
 	pq[j].index = j
@@ -32,7 +32,7 @@ func (pq PriorityQueue) Swap(i, j int) {
 
 // Push adds a value to the pqueue - called by
 // head.Interface
-func (pq *PriorityQueue) Push(x any) {
+func (pq *PQueue) Push(x any) {
 	n := len(*pq)
 	item := x.(*Item)
 	item.index = n
@@ -41,7 +41,7 @@ func (pq *PriorityQueue) Push(x any) {
 
 // Pop removes a value from the pqueue -
 // called by head.Interface
-func (pq *PriorityQueue) Pop() any {
+func (pq *PQueue) Pop() any {
 	old := *pq
 	n := len(old)
 	item := old[n-1]
@@ -52,7 +52,7 @@ func (pq *PriorityQueue) Pop() any {
 }
 
 // update modifies the priority and value of an Item in the queue.
-func (pq *PriorityQueue) update(item *Item, value string, priority int) {
+func (pq *PQueue) update(item *Item, value string, priority int) {
 	item.value = value
 	item.priority = priority
 	heap.Fix(pq, item.index)
