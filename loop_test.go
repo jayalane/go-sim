@@ -7,9 +7,8 @@ import (
 
 // TestLoop runs a small simulation
 func TestLoop(t *testing.T) {
-
 	Init()
-	
+
 	loop := Loop{}
 
 	stageConfAry := []StageConf{{LocalWork: uniformCDF(1, 10)}}

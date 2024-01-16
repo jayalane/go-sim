@@ -22,7 +22,7 @@ type Loop struct {
 // to stop the main loop
 func (l *Loop) Run(length float64) {
 	l.broadcaster = NewBroadcaster()
-	
+
 	l.time = 1000
 	for i, s := range l.sources {
 		fmt.Println("Call run sources", l.time, i, s)
@@ -36,7 +36,7 @@ func (l *Loop) Run(length float64) {
 		}
 		for i, n := range l.nodes {
 			n.NextMillisecond()
-			ll.Ln("Calling node for time", l.time, n.App.Name, i, n)
+			ml.Ln("Calling node for time", l.time, n.App.Name, i, n)
 		}
 		l.broadcaster.Broadcast() // tell everyone the ms is over
 	}
