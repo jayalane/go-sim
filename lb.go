@@ -4,10 +4,6 @@
 // discrete event simulation and then run it to generate statistics
 package sim
 
-import (
-	"math/rand"
-)
-
 // LbConf is the configuration of an application
 type LbConf struct {
 	Name string
@@ -16,7 +12,6 @@ type LbConf struct {
 
 // LB is a load balancer
 type LB struct {
-	NodeInterface
 	Node
 	appInstances []*Node
 }

@@ -11,15 +11,18 @@ import (
 // nodes to the SimEntryPoint(s) and
 // adding them
 type Loop struct {
-	time    float64
-	sources []*Source
-	nodes   []*Node
-	lbs     map[string]*LB
+	time        float64
+	sources     []*Source
+	nodes       []*Node
+	lbs         map[string]*LB
+	broadcaster *Broadcaster
 }
 
 // Run starts the main loop as a go routine and returns a channel
 // to stop the main loop
 func (l *Loop) Run(length float64) {
+	l.broadcaster = NewBroadcaster()
+	
 	l.time = 1000
 	for i, s := range l.sources {
 		fmt.Println("Call run sources", l.time, i, s)
@@ -33,9 +36,16 @@ func (l *Loop) Run(length float64) {
 		}
 		for i, n := range l.nodes {
 			n.NextMillisecond()
-			fmt.Println("Calling node for time", n.App.Name, i, n)
+			ll.Ln("Calling node for time", l.time, n.App.Name, i, n)
 		}
+		l.broadcaster.Broadcast() // tell everyone the ms is over
 	}
+}
+
+// Stats prints out the accumulated stats for the run
+// to stop the main loop
+func (l *Loop) Stats() {
+	ml.La("TBD")
 }
 
 // AddNode adds a node into Loop's internals
@@ -56,4 +66,18 @@ func (l *Loop) AddLB(name string, lb *LB) {
 	l.lbs[name] = lb
 
 	return
+}
+
+// GetLB adds an LB for the named app
+func (l *Loop) GetLB(name string) *LB {
+	if l.lbs == nil {
+		l.lbs = make(map[string]*LB, 1000)
+		return nil
+	}
+	lb, ok := l.lbs[name]
+	if !ok {
+		return nil
+	}
+
+	return lb
 }

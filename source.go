@@ -6,18 +6,17 @@ package sim
 
 // EventCB is called by a source to generate and send the new
 // work
-type EventCB func(s *Source)
+type EventCB func(s *Source) *Call
 
 // SourceConf configures an event source
 type SourceConf struct {
-	Name      string
-	Lambda    float64
-	MakeEvent EventCB
+	Name     string
+	Lambda   float64
+	MakeCall EventCB
 }
 
 // Source is a source of events
 type Source struct {
-	NodeInterface
 	Node
 	// Later:  (can't say to do due to linting) have concept of
 	// customer flow)
@@ -31,7 +30,7 @@ type Source struct {
 func MakeSource(sourceConf *SourceConf, l *Loop) *Source {
 	source := Source{}
 	source.lambda = sourceConf.Lambda
-	source.newEventCb = sourceConf.MakeEvent
+	source.newEventCb = sourceConf.MakeCall
 
 	return &source
 }

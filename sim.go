@@ -5,11 +5,25 @@
 package sim
 
 import (
-	"math/rand"
+	ll "github.com/jayalane/go-lll"
 )
+
+var ml *ll.Lll
 
 // Milliseconds is the internal sim time type
 type Milliseconds float64
 
 // Now is the current global sim time
 var Now Milliseconds
+
+// Init must be called before any simulation stuff
+// it merely inits the logger
+func Init() {
+	ml = ll.Init("SIM", "network")
+}
+
+// InitWithLogger is an init where youc an
+// pass in the go-lll logger.
+func InitWithLogger(ll *ll.Lll) {
+	ml = ll
+}

@@ -31,6 +31,6 @@ func MakeApp(a *AppConf, l *Loop) *Node {
 	n.App = a
 
 	l.AddNode(&n)
-
+	n.Run()
 	return &n
 }

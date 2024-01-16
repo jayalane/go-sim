@@ -17,7 +17,7 @@ func TestPQueue(t *testing.T) {
 
 	// Create a priority queue, put the items in it, and
 	// establish the priority queue (heap) invariants.
-	pq := make(PriorityQueue, len(items))
+	pq := make(PQueue, len(items))
 	i := 0
 	for value, priority := range items {
 		pq[i] = &Item{

@@ -16,7 +16,7 @@ func TestDistribution(t *testing.T) {
 	} {
 		for x := 0; x < 1000; x++ {
 			p := rand.Float64()
-			fmt.Printf("p is %d RV is %d\n", p, f(p))
+			fmt.Printf("p is %f RV is %f\n", p, f(p))
 		}
 		fmt.Println("Next RV type")
 	}
