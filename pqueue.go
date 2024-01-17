@@ -24,6 +24,14 @@ func (pq PQueue) Less(i, j int) bool {
 	return pq[i].priority > pq[j].priority
 }
 
+// Peak returns the next item to be
+func (pq *PQueue) Peak() *Item {
+	if len(*pq) == 0 {
+		return nil
+	}
+	return (*pq)[0]
+}
+
 func (pq PQueue) Swap(i, j int) {
 	pq[i], pq[j] = pq[j], pq[i]
 	pq[i].index = i

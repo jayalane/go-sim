@@ -6,42 +6,49 @@ package sim
 
 import (
 	"container/heap"
+	"sync"
 	"time"
 )
 
 // NodeInterface is the base interface used by sources, LBs, apps, DBs etc.
 type NodeInterface interface {
-	Run() // starts a goroutine
+	Run()    // starts a goroutine
+	RunApp() // from a task
+	GetNode()
+	GenerateEvent()
 	NextMillisecond()
 	GetMillisecond()
 	StatsMillisecond()
 	GetCallChannel() chan *Job
 	GetReplyChannel() chan *Job
+	HandleTask(*Call)
 }
 
 // Node is a simulation particle that
 // can take in or emit work; it is a Node
 type Node struct {
-	loop       *Loop
-	callCh     chan *Call
-	repliesCh  chan *Call
-	msCh       chan bool
-	events     *PQueue
-	done       chan bool
-	resources  map[string]float64
-	stats      map[string]float64
-	App        *AppConf
-	nextEvent  Milliseconds
-	lambda     float64
-	newEventCb EventCB // only for sources
+	loop      *Loop
+	callCh    chan *Call
+	repliesCh chan *Result
+	msCh      chan bool
+	tasksMu   sync.Mutex
+	tasks     PQueue
+	done      chan bool
+	name      string
+	resources map[string]float64 // for limits later on
+	stats     map[string]float64
+	App       *AppConf
 }
 
-func (n *Node) addEvent(j *Call) {
+func (n *Node) addTask(j *Call) {
+	n.tasksMu.Lock()
+	defer n.tasksMu.Unlock()
 	i := &Item{
 		value:    j,
 		priority: int(j.wakeUp),
 	}
-	heap.Push(n.events, i)
+	ml.La("!!!!!! Add task", n.name, len(n.tasks))
+	heap.Push(&n.tasks, i)
 }
 
 func (n *Node) callWaiter(j *Job) {
@@ -53,38 +60,88 @@ func (n *Node) callWaiter(j *Job) {
 	}
 }
 
+// HandleTask processes an incoming call
+func (n *Node) HandleTask(c *Call) {
+	ml.La("Got a task:", c, n.name)
+	// TBD
+}
+
+func (n *Node) handleTasks() {
+	now := n.loop.GetTime()
+	n.tasksMu.Lock()
+	defer n.tasksMu.Unlock()
+
+	for {
+		next := n.tasks.Peak()
+		if next == nil {
+			break
+		}
+		if float64(next.priority) < now {
+			item := heap.Pop(&n.tasks)
+			n.HandleTask(item.(*Item).value.(*Call))
+			ml.La("Handled task", item.(*Item).value.(*Call), "len is now", len(n.tasks))
+			continue
+		} else {
+			break
+		}
+	}
+}
+
 func (n *Node) runner() {
+	ml.La("Starting runner for", n.name)
+	if n.name == "" {
+		panic("Unnamed node")
+	}
 	for {
 		select {
 		case c := <-n.callCh:
-			n.addEvent(c)
-			ml.Ln("Node got call", *n, *c)
+			n.addTask(c)
+			ml.Ln("Node got call!!!!!!!", n.name, *c)
 
 		case ms := <-n.msCh:
-			ml.Ln("Node got ms", *n, ms)
-			if n.newEventCb != nil {
-				ml.Ln("Node got ms and cb", *n, ms, n.loop.GetTime())
-				n.generateEvent()
-			}
+			n.tasksMu.Lock()
+			ml.Ln("Raw Node got ms", n.name, ms, len(n.tasks))
+			n.tasksMu.Unlock()
+			n.handleTasks()
 
 		case <-time.After(60 * time.Second):
-			ml.Ls("Node without events for 60 seconds", *n)
+			ml.Ls("Node without events for 60 seconds", n.name)
 
 		case <-n.done:
-			ml.La("Node shutting down on done", *n)
+			ml.La("Node shutting down on done", n.name)
 
 			return
 		}
 	}
 }
 
+// GetNode returns the Node struct for this interface
+func (n *Node) GetNode() *Node {
+	return n
+}
+
 // Run starts the goroutine for this node
+// it is getting the init time stuff also
 func (n *Node) Run() {
+	ml.La("Doing Run/Init for", n.name)
+	if n.name == "count-lb" {
+		ml.La("Got count-lb")
+	}
+
+	n.callCh = make(chan *Call, 100) // ?
 	n.msCh = n.loop.broadcaster.Subscribe()
+	n.tasks = make(PQueue, 0)
+	heap.Init(&n.tasks)
+
 	go n.runner()
 }
 
 // NextMillisecond runs all the work due in the next ms
 func (n *Node) NextMillisecond() {
-	ml.Ls("Node", *n, "running", n.loop.GetTime())
+	ml.Ls("Node", n.name, "running", n.loop.GetTime())
+}
+
+// GenerateEvent does nothing for a base node
+func (n *Node) GenerateEvent() {
+	ml.Ls("Node", n.name, "has no events to generate")
 }

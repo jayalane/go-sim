@@ -20,16 +20,15 @@ func TestLoop(t *testing.T) {
 	appConf := AppConf{Name: "count", Size: 5, Stages: stageConfAry}
 
 	lbConf := LbConf{Name: "count", App: &appConf}
-	lb := MakeLB(&lbConf, loop)
-
-	loop.AddLB("count", lb)
+	MakeLB(&lbConf, loop)
 
 	sourceConf := SourceConf{
 		Name: "ngrl", Lambda: 0.05,
-		MakeCall: func(n *Node) *Call {
+		MakeCall: func(s *Source) *Call {
 			c := Call{}
 			c.replyCh = make(chan *Result, 2)
 			c.timeoutMs = 90.0
+			c.wakeUp = Milliseconds(s.n.loop.GetTime() + 5.0)
 			c.endPoint = "count"
 			return &c
 		},

@@ -6,4 +6,5 @@ package sim
 type Result struct {
 	length uint64
 	status uint64
+	call   *Call
 }

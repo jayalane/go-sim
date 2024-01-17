@@ -25,10 +25,11 @@ type AppConf struct {
 
 // MakeApp takes and app config and a loop and returns a
 // node integrated into that loop
-func MakeApp(a *AppConf, l *Loop) *Node {
+func MakeApp(a *AppConf, l *Loop, suffix string) *Node {
 	n := Node{}
 
 	n.App = a
+	n.name = a.Name + suffix
 
 	l.AddNode(&n)
 	n.Run()

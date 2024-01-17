@@ -39,18 +39,22 @@ func (l *Loop) IncrementTime() {
 func (l *Loop) Run(length float64) {
 	l.time = 1000
 	for i, s := range l.sources {
-		fmt.Println("Call run sources", l.time, i, s)
+		fmt.Println("Call run sources", i, s)
 		s.Run()
+	}
+	for k, v := range l.lbs {
+		fmt.Println("Call run LBs", k, v)
+		v.Run()
 	}
 	for ; l.GetTime() < length+1000.0; l.IncrementTime() {
 
 		for i, s := range l.sources {
-			fmt.Println("Call next ms sources", l.time, i, s)
+			fmt.Println("Call next ms sources", l.time, i, s.n.name)
 			s.NextMillisecond()
 		}
 		for i, n := range l.nodes {
 			n.NextMillisecond()
-			ml.Ln("Calling node for time", l.time, n.App.Name, i, n)
+			ml.Ln("Calling node for time", l.time, n.App.Name, i, n.name)
 		}
 		l.broadcaster.Broadcast() // tell everyone the ms is over
 	}
@@ -79,7 +83,7 @@ func (l *Loop) AddNode(n *Node) {
 // AddSource adds a event generator into Loop's internals
 func (l *Loop) AddSource(s *Source) {
 	l.sources = append(l.sources, s)
-	s.loop = l
+	s.n.loop = l
 }
 
 // AddLB adds an LB into the loop
@@ -88,7 +92,7 @@ func (l *Loop) AddLB(name string, lb *LB) {
 		l.lbs = make(map[string]*LB, 1000)
 	}
 	l.lbs[name] = lb
-	lb.loop = l
+	lb.n.loop = l
 
 	return
 }
