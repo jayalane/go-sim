@@ -26,8 +26,7 @@ func MakeLB(lbConf *LbConf, l *Loop) *LB {
 
 	for i := uint16(0); i < lbConf.App.Size; i++ {
 		n := MakeApp(lbConf.App, l)
-		l.AddNode(n)
-		lb.appInstances = append(lb.appInstances, n)
+		lb.appInstances[i] = n
 	}
 
 	l.AddLB(lbConf.App.Name, &lb)

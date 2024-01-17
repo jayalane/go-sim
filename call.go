@@ -13,3 +13,8 @@ type Call struct {
 	connection *Connection
 	replyCh    chan *Result
 }
+
+// SendCall sends the call to the LB
+func (c *Call) SendCall(lb *LB) {
+	lb.callCh <- c // blocking as is
+}

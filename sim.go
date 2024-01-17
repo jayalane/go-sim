@@ -13,9 +13,6 @@ var ml *ll.Lll
 // Milliseconds is the internal sim time type
 type Milliseconds float64
 
-// Now is the current global sim time
-var Now Milliseconds
-
 // Init must be called before any simulation stuff
 // it merely inits the logger
 func Init() {

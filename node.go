@@ -22,16 +22,21 @@ type NodeInterface interface {
 // Node is a simulation particle that
 // can take in or emit work; it is a Node
 type Node struct {
-	calls     chan *Job
-	replies   chan *Job
-	events    *PQueue
-	done      chan bool
-	resources map[string]float64
-	stats     map[string]float64
-	App       *AppConf
+	loop       *Loop
+	callCh     chan *Call
+	repliesCh  chan *Call
+	msCh       chan bool
+	events     *PQueue
+	done       chan bool
+	resources  map[string]float64
+	stats      map[string]float64
+	App        *AppConf
+	nextEvent  Milliseconds
+	lambda     float64
+	newEventCb EventCB // only for sources
 }
 
-func (n *Node) addEvent(j *Job) {
+func (n *Node) addEvent(j *Call) {
 	i := &Item{
 		value:    j,
 		priority: int(j.wakeUp),
@@ -51,9 +56,16 @@ func (n *Node) callWaiter(j *Job) {
 func (n *Node) runner() {
 	for {
 		select {
-		case e := <-n.calls:
-			n.addEvent(e)
-			ml.Ln("Node got event", *n, *e)
+		case c := <-n.callCh:
+			n.addEvent(c)
+			ml.Ln("Node got call", *n, *c)
+
+		case ms := <-n.msCh:
+			ml.Ln("Node got ms", *n, ms)
+			if n.newEventCb != nil {
+				ml.Ln("Node got ms and cb", *n, ms, n.loop.GetTime())
+				n.generateEvent()
+			}
 
 		case <-time.After(60 * time.Second):
 			ml.Ls("Node without events for 60 seconds", *n)
@@ -68,10 +80,11 @@ func (n *Node) runner() {
 
 // Run starts the goroutine for this node
 func (n *Node) Run() {
+	n.msCh = n.loop.broadcaster.Subscribe()
 	go n.runner()
 }
 
 // NextMillisecond runs all the work due in the next ms
 func (n *Node) NextMillisecond() {
-	ml.Ls("Node", n, "running", Now)
+	ml.Ls("Node", *n, "running", n.loop.GetTime())
 }

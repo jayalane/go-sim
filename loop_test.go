@@ -2,26 +2,31 @@
 package sim
 
 import (
+	"os"
 	"testing"
+
+	ll "github.com/jayalane/go-lll"
 )
 
 // TestLoop runs a small simulation
 func TestLoop(t *testing.T) {
+	ll.SetWriter(os.Stdout)
 	Init()
+	// ll.SetWriter(os.Stdout) // tbd look up which is proper
 
-	loop := Loop{}
+	loop := NewLoop("default")
 
 	stageConfAry := []StageConf{{LocalWork: uniformCDF(1, 10)}}
 	appConf := AppConf{Name: "count", Size: 5, Stages: stageConfAry}
 
 	lbConf := LbConf{Name: "count", App: &appConf}
-	lb := MakeLB(&lbConf, &loop)
+	lb := MakeLB(&lbConf, loop)
 
 	loop.AddLB("count", lb)
 
 	sourceConf := SourceConf{
 		Name: "ngrl", Lambda: 0.05,
-		MakeCall: func(s *Source) *Call {
+		MakeCall: func(n *Node) *Call {
 			c := Call{}
 			c.replyCh = make(chan *Result, 2)
 			c.timeoutMs = 90.0
@@ -30,9 +35,9 @@ func TestLoop(t *testing.T) {
 		},
 	}
 
-	src := MakeSource(&sourceConf, &loop)
+	src := MakeSource(&sourceConf, loop)
 	loop.AddSource(src)
 
-	loop.Run(10000) // msecs
+	loop.Run(100) // msecs
 	loop.Stats()
 }

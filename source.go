@@ -6,7 +6,7 @@ package sim
 
 // EventCB is called by a source to generate and send the new
 // work
-type EventCB func(s *Source) *Call
+type EventCB func(s *Node) *Call
 
 // SourceConf configures an event source
 type SourceConf struct {
@@ -20,10 +20,14 @@ type Source struct {
 	Node
 	// Later:  (can't say to do due to linting) have concept of
 	// customer flow)
-	nextEvent  Milliseconds
-	lambda     float64
-	newEventCb EventCB
-	downstream *Node // should be an LB
+}
+
+func (n *Node) generateEvent() {
+	ml.La("Generate EVENT!")
+	c := n.newEventCb(n)
+	c.startTime = Milliseconds(n.loop.GetTime())
+	lb := n.loop.GetLB(c.endPoint)
+	c.SendCall(lb)
 }
 
 // MakeSource turns a source configuration into the source

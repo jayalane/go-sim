@@ -4,6 +4,7 @@ package sim
 
 import (
 	"fmt"
+	"sync"
 )
 
 // Loop is a main driver for the simulation
@@ -12,24 +13,37 @@ import (
 // adding them
 type Loop struct {
 	time        float64
+	muTime      sync.RWMutex
 	sources     []*Source
 	nodes       []*Node
 	lbs         map[string]*LB
 	broadcaster *Broadcaster
 }
 
-// Run starts the main loop as a go routine and returns a channel
-// to stop the main loop
-func (l *Loop) Run(length float64) {
-	l.broadcaster = NewBroadcaster()
+// GetTime returns the current sim time safely
+func (l *Loop) GetTime() float64 {
+	l.muTime.RLock()
+	x := l.time
+	l.muTime.RUnlock()
+	return x
+}
 
+// IncrementTime adds one to the current sim time safely
+func (l *Loop) IncrementTime() {
+	l.muTime.Lock()
+	l.time++
+	l.muTime.Unlock()
+}
+
+// Run starts the main loop and runs it for length msecs
+func (l *Loop) Run(length float64) {
 	l.time = 1000
 	for i, s := range l.sources {
 		fmt.Println("Call run sources", l.time, i, s)
 		s.Run()
 	}
-	for ; l.time < length+1000.0; l.time = l.time + 1.0 {
-		Now = Milliseconds(l.time)
+	for ; l.GetTime() < length+1000.0; l.IncrementTime() {
+
 		for i, s := range l.sources {
 			fmt.Println("Call next ms sources", l.time, i, s)
 			s.NextMillisecond()
@@ -48,14 +62,24 @@ func (l *Loop) Stats() {
 	ml.La("TBD")
 }
 
+// NewLoop initializes and returns a simulation main loop
+func NewLoop(name string) *Loop {
+	// TBD use name
+	loop := Loop{}
+	loop.broadcaster = NewBroadcaster()
+	return &loop
+}
+
 // AddNode adds a node into Loop's internals
 func (l *Loop) AddNode(n *Node) {
 	l.nodes = append(l.nodes, n)
+	n.loop = l
 }
 
 // AddSource adds a event generator into Loop's internals
 func (l *Loop) AddSource(s *Source) {
 	l.sources = append(l.sources, s)
+	s.loop = l
 }
 
 // AddLB adds an LB into the loop
@@ -64,6 +88,7 @@ func (l *Loop) AddLB(name string, lb *LB) {
 		l.lbs = make(map[string]*LB, 1000)
 	}
 	l.lbs[name] = lb
+	lb.loop = l
 
 	return
 }
