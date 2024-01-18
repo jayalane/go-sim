@@ -21,7 +21,8 @@ type NodeInterface interface {
 	StatsMillisecond()
 	GetCallChannel() chan *Job
 	GetReplyChannel() chan *Job
-	HandleTask(*Call)
+	HandleCall(*Call)
+	HandleTask(*Task)
 }
 
 // Node is a simulation particle that
@@ -33,6 +34,8 @@ type Node struct {
 	msCh      chan bool
 	tasksMu   sync.Mutex
 	tasks     PQueue
+	callsMu   sync.Mutex
+	calls     PQueue
 	done      chan bool
 	name      string
 	resources map[string]float64 // for limits later on
@@ -40,14 +43,25 @@ type Node struct {
 	App       *AppConf
 }
 
-func (n *Node) addTask(j *Call) {
-	n.tasksMu.Lock()
-	defer n.tasksMu.Unlock()
+func (n *Node) addCall(j *Call) {
+	n.callsMu.Lock()
+	defer n.callsMu.Unlock()
 	i := &Item{
 		value:    j,
 		priority: int(j.wakeUp),
 	}
-	ml.La("!!!!!! Add task", n.name, len(n.tasks))
+	ml.La("Add call", n.name, len(n.calls), j.wakeup)
+	heap.Push(&n.calls, i)
+}
+
+func (n *Node) addTask(t *Task) {
+	n.callsMu.Lock()
+	defer n.callsMu.Unlock()
+	i := &Item{
+		value:    t,
+		priority: int(t.wakeUp),
+	}
+	ml.La("Add task", n.name, len(n.tasks), t.wakeup)
 	heap.Push(&n.tasks, i)
 }
 
@@ -60,26 +74,33 @@ func (n *Node) callWaiter(j *Job) {
 	}
 }
 
-// HandleTask processes an incoming call
-func (n *Node) HandleTask(c *Call) {
-	ml.La("Got a task:", c, n.name)
-	// TBD
+// HandleCall processes an incoming call
+func (n *Node) HandleCall(c *Call) {
+	ml.La("Got a call:", c, n.name)
+	for _, h := range n.App.Stages {
+		ml.La("Build a task for h", *h)
+		p := rand.Float64()
+		task := Task{
+			wakeUp: Milliseconds(n.loop.GetTime() + h.LocalWork[p]), // TBD
+		}
+		n.addTask(&task)
+	}
 }
 
-func (n *Node) handleTasks() {
+func (n *Node) handleCalls() {
 	now := n.loop.GetTime()
-	n.tasksMu.Lock()
-	defer n.tasksMu.Unlock()
+	n.callsMu.Lock()
+	defer n.callsMu.Unlock()
 
 	for {
-		next := n.tasks.Peak()
+		next := n.calls.Peak()
 		if next == nil {
 			break
 		}
 		if float64(next.priority) < now {
-			item := heap.Pop(&n.tasks)
-			n.HandleTask(item.(*Item).value.(*Call))
-			ml.La("Handled task", item.(*Item).value.(*Call), "len is now", len(n.tasks))
+			item := heap.Pop(&n.calls)
+			n.HandleCall(item.(*Item).value.(*Call))
+			ml.La("Handled call", item.(*Item).value.(*Call), "len is now", len(n.calls))
 			continue
 		} else {
 			break
@@ -95,14 +116,14 @@ func (n *Node) runner() {
 	for {
 		select {
 		case c := <-n.callCh:
-			n.addTask(c)
+			n.addCall(c)
 			ml.Ln("Node got call!!!!!!!", n.name, *c)
 
 		case ms := <-n.msCh:
-			n.tasksMu.Lock()
-			ml.Ln("Raw Node got ms", n.name, ms, len(n.tasks))
-			n.tasksMu.Unlock()
-			n.handleTasks()
+			n.callsMu.Lock()
+			ml.Ln("Raw Node got ms", n.name, ms, len(n.calls))
+			n.callsMu.Unlock()
+			n.handleCalls()
 
 		case <-time.After(60 * time.Second):
 			ml.Ls("Node without events for 60 seconds", n.name)
@@ -130,7 +151,9 @@ func (n *Node) Run() {
 
 	n.callCh = make(chan *Call, 100) // ?
 	n.msCh = n.loop.broadcaster.Subscribe()
+	n.calls = make(PQueue, 0)
 	n.tasks = make(PQueue, 0)
+	heap.Init(&n.calls)
 	heap.Init(&n.tasks)
 
 	go n.runner()

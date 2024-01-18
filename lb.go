@@ -45,7 +45,7 @@ func (lb *LB) GenerateEvent() {
 func (lb *LB) HandleCall(c *Call) {
 	lb.lastSent++
 	poolSize := len(lb.appInstances)
-	lb.appInstances[lb.lastSent%poolSize].callCh <- c // TBD blocking
+	c.SendCall(lb.appInstances[lb.lastSent%poolSize])
 }
 
 // MakeLB takes an LB config and a loop and returns an

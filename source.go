@@ -6,6 +6,7 @@ package sim
 
 import (
 	"container/heap"
+	"fmt"
 	"math/rand"
 )
 
@@ -57,12 +58,12 @@ func (s *Source) GenerateEvent() {
 	c := s.newEventCb(s)
 	c.startTime = Milliseconds(s.n.loop.GetTime())
 	lb := s.n.loop.GetLB(c.endPoint + "-lb")
-	c.SendCall(lb)
+	c.SendCall(&lb.n)
 }
 
-// HandleTask for a source does nothing
-func (s *Source) HandleTask() {
-	ml.La("Source got a task?", s.n.name, s.n.loop.GetTime())
+// HandleCall for a source does nothing
+func (s *Source) HandleCall() {
+	panic("Source got a task?" + s.n.name + fmt.Sprintf("%f", s.n.loop.GetTime()))
 }
 
 // NextMillisecond runs all the work due in the last ms for a source

@@ -15,6 +15,6 @@ type Call struct {
 }
 
 // SendCall sends the call to the LB
-func (c *Call) SendCall(lb *LB) {
-	lb.n.callCh <- c // blocking as is
+func (c *Call) SendCall(n *Node) {
+	n.callCh <- c // blocking as is
 }
