@@ -9,7 +9,7 @@ import (
 	"container/heap"
 )
 
-type closure func() 
+type closure func()
 
 // Task is a structure to track work for an app locally
 type Task struct {

@@ -74,6 +74,7 @@ func (n *Node) callWaiter(j *Job) {
 	}
 }
 
+
 // HandleCall processes an incoming call
 func (n *Node) HandleCall(c *Call) {
 	ml.La("Got a call:", c, n.name)
@@ -82,6 +83,14 @@ func (n *Node) HandleCall(c *Call) {
 		p := rand.Float64()
 		task := Task{
 			wakeUp: Milliseconds(n.loop.GetTime() + h.LocalWork[p]), // TBD
+			later: func() {
+				for i, pool := range h.RemoteCalls[] {
+					newc := c.Fanout(pool)
+					//					TBD
+					
+				}
+				
+			},
 		}
 		n.addTask(&task)
 	}
