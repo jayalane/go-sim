@@ -45,7 +45,12 @@ func (lb *LB) GenerateEvent() {
 func (lb *LB) HandleCall(c *Call) {
 	lb.lastSent++
 	poolSize := len(lb.appInstances)
-	c.SendCall(lb.appInstances[lb.lastSent%poolSize])
+	c.SendCall(lb.appInstances[lb.lastSent%poolSize],
+		func(n *Node, r *Reply) {
+			ml.La(n.name+" LB got a reply", *r, *c)
+			c.replyCh <- r
+		},
+	)
 }
 
 // MakeLB takes an LB config and a loop and returns an
@@ -54,7 +59,7 @@ func MakeLB(lbConf *LbConf, l *Loop) *LB {
 	lb := LB{}
 	lb.n.App = lbConf.App
 	lb.n.name = lb.n.App.Name + "-lb"
-
+	lb.n.callCB = lb.HandleCall
 	lb.appInstances = make([]*Node, lbConf.App.Size)
 
 	for i := uint16(0); i < lbConf.App.Size; i++ {

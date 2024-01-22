@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// CallCB allows LB to override node
+type CallCB func(c *Call)
+
 // NodeInterface is the base interface used by sources, LBs, apps, DBs etc.
 type NodeInterface interface {
 	Run()    // starts a goroutine
@@ -21,7 +24,7 @@ type NodeInterface interface {
 	GetMillisecond()
 	StatsMillisecond()
 	GetCallChannel() chan *Call
-	GetReplyChannel() chan *Result
+	GetReplyChannel() chan *Reply
 	HandleCall(*Call)
 	HandleTask(*Task)
 }
@@ -31,12 +34,12 @@ type NodeInterface interface {
 type Node struct {
 	loop      *Loop
 	callCh    chan *Call
-	repliesCh chan *Result
 	msCh      chan bool
 	tasksMu   sync.Mutex
 	tasks     PQueue
 	callsMu   sync.Mutex
 	calls     PQueue
+	callCB    CallCB
 	done      chan bool
 	name      string
 	resources map[string]float64 // for limits later on
@@ -56,14 +59,15 @@ func (n *Node) addCall(j *Call) {
 }
 
 func (n *Node) addTask(t *Task) {
-	n.callsMu.Lock()
-	defer n.callsMu.Unlock()
+	n.tasksMu.Lock()
+	defer n.tasksMu.Unlock()
 	i := &Item{
 		value:    t,
 		priority: int(t.wakeup),
 	}
 	ml.La("Add task", n.name, len(n.tasks), t.wakeup)
 	heap.Push(&n.tasks, i)
+	ml.La("Add task", n.name, len(n.tasks), t.wakeup)
 }
 
 // HandleCall processes an incoming call
@@ -75,13 +79,17 @@ func (n *Node) HandleCall(c *Call) {
 		task := Task{
 			wakeup: Milliseconds(n.loop.GetTime() + h.LocalWork(p)), // TBD
 			later: func() {
+				ml.La("Running closure for task", n.name)
 				for _, pool := range h.RemoteCalls {
+					ml.La("Fanning out from", n.name, pool)
 					c.Fanout(pool, n)
-					//					TBD
 				}
 			},
+			call: c,
 		}
+		ml.La("First Later is", task.later, len(n.tasks))
 		n.addTask(&task)
+		ml.La("Second Later is", task.later, len(n.tasks))
 	}
 }
 
@@ -97,7 +105,15 @@ func (n *Node) handleCalls() {
 		}
 		if float64(next.priority) < now {
 			item := heap.Pop(&n.calls)
-			n.HandleCall(item.(*Item).value.(*Call))
+			call := item.(*Item).value.(*Call)
+			if n.callCB != nil {
+				ml.La("Got call for", n.name, "LB")
+				n.callCB(call)
+				// poorly implemented bug riddled CLOS
+			} else {
+				ml.La("Got call for", n.name, " node")
+				n.HandleCall(call)
+			}
 			ml.La("Handled call", item.(*Item).value.(*Call), "len is now", len(n.calls))
 			continue
 		} else {
@@ -119,9 +135,10 @@ func (n *Node) runner() {
 
 		case ms := <-n.msCh:
 			n.callsMu.Lock()
-			ml.Ln("Raw Node got ms", n.name, ms, len(n.calls))
+			ml.Ln("Raw Node got ms", n.name, ms, len(n.calls), len(n.tasks))
 			n.callsMu.Unlock()
 			n.handleCalls()
+			n.handleTasks()
 
 		case <-time.After(60 * time.Second):
 			ml.Ls("Node without events for 60 seconds", n.name)

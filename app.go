@@ -6,7 +6,7 @@ package sim
 
 // StageConf is the configuration of a stage of app work
 type StageConf struct {
-	LocalWork   LatencyCdf
+	LocalWork   ModelCdf
 	RemoteCalls []string
 }
 
@@ -18,9 +18,10 @@ type Stage struct {
 
 // AppConf is the configuration of an application
 type AppConf struct {
-	Name   string
-	Size   uint16
-	Stages []StageConf
+	Name     string
+	Size     uint16
+	ReplyLen ModelCdf
+	Stages   []StageConf
 }
 
 // MakeApp takes and app config and a loop and returns a

@@ -58,7 +58,14 @@ func (s *Source) GenerateEvent() {
 	c := s.newEventCb(s)
 	c.startTime = Milliseconds(s.n.loop.GetTime())
 	lb := s.n.loop.GetLB(c.endPoint + "-lb")
-	c.SendCall(&lb.n)
+	c.SendCall(&lb.n,
+		func(
+			n *Node,
+			r *Reply,
+		) {
+			ml.La("Finished EVENT!", s.n.name, s.n.loop.GetTime())
+		},
+	)
 }
 
 // HandleCall for a source does nothing

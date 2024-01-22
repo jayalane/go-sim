@@ -4,6 +4,9 @@
 // discrete event simulation and then run it to generate statistics
 package sim
 
+// HandleReply type is a callback to process the reply from a call
+type HandleReply func(*Node, *Reply)
+
 // Call is a structure to track a remote call
 type Call struct {
 	wakeup     Milliseconds
@@ -14,14 +17,30 @@ type Call struct {
 	id1        uint64
 	id2        uint64
 	connection *Connection
-	replyCh    chan *Result
+	replyCh    chan *Reply
 }
 
 // SendCall sends the call to the node
-func (c *Call) SendCall(n *Node) {
+func (c *Call) SendCall(n *Node, f HandleReply) {
 	n.callCh <- c // blocking as is
+	go func() {
+		ml.La(n.name + " waiting for reply")
+		response := <-c.replyCh
+		f(n, response)
+		ml.La(n.name + " waiting for reply")
+	}()
 }
 
 // Fanout will send a call to an endpoint
 func (c *Call) Fanout(endpoint string, n *Node) {
+	target := n.loop.GetLB(endpoint + "-lb")
+	ml.La("Sending call", c, "to", endpoint)
+	c.SendCall(&target.n,
+		func(
+			n *Node,
+			r *Reply,
+		) {
+			ml.Ln("Got a reply", n.name, *r)
+		},
+	)
 }

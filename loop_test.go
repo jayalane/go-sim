@@ -6,18 +6,23 @@ import (
 	"testing"
 
 	ll "github.com/jayalane/go-lll"
+	count "github.com/jayalane/go-counting"
 )
 
 // TestLoop runs a small simulation
 func TestLoop(t *testing.T) {
 	ll.SetWriter(os.Stdout)
 	Init()
-	// ll.SetWriter(os.Stdout) // tbd look up which is proper
 
 	loop := NewLoop("default")
 
 	stageConfAry := []StageConf{{LocalWork: uniformCDF(1, 10)}}
-	appConf := AppConf{Name: "count", Size: 5, Stages: stageConfAry}
+	appConf := AppConf{
+		Name:     "count",
+		Size:     5,
+		Stages:   stageConfAry,
+		ReplyLen: uniformCDF(200, 20000),
+	}
 
 	lbConf := LbConf{Name: "count", App: &appConf}
 	MakeLB(&lbConf, loop)
@@ -26,7 +31,7 @@ func TestLoop(t *testing.T) {
 		Name: "ngrl", Lambda: 0.05,
 		MakeCall: func(s *Source) *Call {
 			c := Call{}
-			c.replyCh = make(chan *Result, 2)
+			c.replyCh = make(chan *Reply, 2)
 			c.timeoutMs = 90.0
 			c.wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
 			c.endPoint = "count"

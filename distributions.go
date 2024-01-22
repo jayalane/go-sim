@@ -10,19 +10,19 @@ import (
 	"gonum.org/v1/gonum/stat/distuv"
 )
 
-// LatencyCdf is a function that is the Cdf of a Distribution.
+// ModelCdf is a function that is the Cdf of a Distribution.
 // It should be >= 0 for all p.
-type LatencyCdf func(p float64) float64
+type ModelCdf func(p float64) float64
 
 // Distribution is an interface for configuring a distribution of an RV
 type Distribution interface {
 	getTimeToSleepMs()
-	setCdf(LatencyCdf)
+	setCdf(ModelCdf)
 }
 
 // uniformCDF returns the CDF of a uniform random variable over [a, b]
 // Given a probability p (0 to 1), it returns the corresponding z such that P(Z <= z) = p
-func uniformCDF(a, b float64) LatencyCdf {
+func uniformCDF(a, b float64) ModelCdf {
 	return func(p float64) float64 {
 		if p < 0 {
 			return a
@@ -37,7 +37,7 @@ func uniformCDF(a, b float64) LatencyCdf {
 }
 
 // normalCDF returns the CDF of a normal random variable with mean μ and standard deviation σ.
-func normalCDF(mu, sigma float64) LatencyCdf {
+func normalCDF(mu, sigma float64) ModelCdf {
 	// Create a normal distribution with mean μ and standard deviation σ
 	norm := distuv.Normal{
 		Mu:    mu,

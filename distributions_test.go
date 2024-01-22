@@ -8,7 +8,7 @@ import (
 )
 
 func TestDistribution(t *testing.T) {
-	for _, f := range []LatencyCdf{
+	for _, f := range []ModelCdf{
 		uniformCDF(1, 5),
 		normalCDF(3, 1),
 		logNormalCDF(2, 1),
