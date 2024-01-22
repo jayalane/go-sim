@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	ll "github.com/jayalane/go-lll"
-	count "github.com/jayalane/go-counting"
 )
 
 // TestLoop runs a small simulation
@@ -28,7 +27,7 @@ func TestLoop(t *testing.T) {
 	MakeLB(&lbConf, loop)
 
 	sourceConf := SourceConf{
-		Name: "ngrl", Lambda: 0.05,
+		Name: "ngrl", Lambda: 0.5,
 		MakeCall: func(s *Source) *Call {
 			c := Call{}
 			c.replyCh = make(chan *Reply, 2)

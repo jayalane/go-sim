@@ -68,6 +68,7 @@ func MakeLB(lbConf *LbConf, l *Loop) *LB {
 	}
 
 	l.AddLB(lb.n.name, &lb) // this name is the lookup for the app
+	l.AddNode(&lb.n)        // this name is the lookup for the app
 
 	return &lb
 }

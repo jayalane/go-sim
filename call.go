@@ -24,10 +24,10 @@ type Call struct {
 func (c *Call) SendCall(n *Node, f HandleReply) {
 	n.callCh <- c // blocking as is
 	go func() {
-		ml.La(n.name + " waiting for reply")
+		ml.La(n.name+" waiting for reply", c.wakeup)
 		response := <-c.replyCh
 		f(n, response)
-		ml.La(n.name + " waiting for reply")
+		ml.La(n.name+" done waiting for reply", n.loop.GetTime())
 	}()
 }
 

@@ -14,21 +14,6 @@ import (
 // CallCB allows LB to override node
 type CallCB func(c *Call)
 
-// NodeInterface is the base interface used by sources, LBs, apps, DBs etc.
-type NodeInterface interface {
-	Run()    // starts a goroutine
-	RunApp() // from a task
-	GetNode()
-	GenerateEvent()
-	NextMillisecond()
-	GetMillisecond()
-	StatsMillisecond()
-	GetCallChannel() chan *Call
-	GetReplyChannel() chan *Reply
-	HandleCall(*Call)
-	HandleTask(*Task)
-}
-
 // Node is a simulation particle that
 // can take in or emit work; it is a Node
 type Node struct {
@@ -87,7 +72,7 @@ func (n *Node) HandleCall(c *Call) {
 			},
 			call: c,
 		}
-		ml.La("First Later is", task.later, len(n.tasks))
+		ml.La("First Later is", task.wakeup, task.later, len(n.tasks))
 		n.addTask(&task)
 		ml.La("Second Later is", task.later, len(n.tasks))
 	}

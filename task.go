@@ -50,8 +50,8 @@ func (n *Node) handleTasks() {
 func (n *Node) HandleTask(t *Task) {
 	ml.La(n.name+"Got a task to do", *t)
 	if t.later != nil {
-		ml.La(n.name + " Running closure")
 		t.later()
+		ml.La(n.name + " ran closure")
 	} else {
 		ml.La(n.name + " No closure to run")
 	}

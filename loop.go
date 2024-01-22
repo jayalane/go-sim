@@ -39,11 +39,11 @@ func (l *Loop) IncrementTime() {
 func (l *Loop) Run(length float64) {
 	l.time = 1000
 	for i, s := range l.sources {
-		fmt.Println("Call run sources", i, s)
+		fmt.Println("Call start source", i, s)
 		s.Run()
 	}
 	for k, v := range l.lbs {
-		fmt.Println("Call run LBs", k, v)
+		fmt.Println("Call start LBs", k, v)
 		v.Run()
 	}
 	for ; l.GetTime() < length+1000.0; l.IncrementTime() {
@@ -53,8 +53,8 @@ func (l *Loop) Run(length float64) {
 			s.NextMillisecond()
 		}
 		for i, n := range l.nodes {
+			ml.Ln("Calling next ms nodes", l.time, n.App.Name, i, n.name)
 			n.NextMillisecond()
-			ml.Ln("Calling node for time", l.time, n.App.Name, i, n.name)
 		}
 		l.broadcaster.Broadcast() // tell everyone the ms is over
 	}
