@@ -6,6 +6,7 @@ package sim
 
 import (
 	"container/heap"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -19,8 +20,8 @@ type NodeInterface interface {
 	NextMillisecond()
 	GetMillisecond()
 	StatsMillisecond()
-	GetCallChannel() chan *Job
-	GetReplyChannel() chan *Job
+	GetCallChannel() chan *Call
+	GetReplyChannel() chan *Result
 	HandleCall(*Call)
 	HandleTask(*Task)
 }
@@ -48,7 +49,7 @@ func (n *Node) addCall(j *Call) {
 	defer n.callsMu.Unlock()
 	i := &Item{
 		value:    j,
-		priority: int(j.wakeUp),
+		priority: int(j.wakeup),
 	}
 	ml.La("Add call", n.name, len(n.calls), j.wakeup)
 	heap.Push(&n.calls, i)
@@ -59,37 +60,25 @@ func (n *Node) addTask(t *Task) {
 	defer n.callsMu.Unlock()
 	i := &Item{
 		value:    t,
-		priority: int(t.wakeUp),
+		priority: int(t.wakeup),
 	}
 	ml.La("Add task", n.name, len(n.tasks), t.wakeup)
 	heap.Push(&n.tasks, i)
 }
 
-func (n *Node) callWaiter(j *Job) {
-	for {
-		select {
-		case j2 := <-j.replyCh:
-			ml.Ln("Got reply", j2)
-		}
-	}
-}
-
-
 // HandleCall processes an incoming call
 func (n *Node) HandleCall(c *Call) {
 	ml.La("Got a call:", c, n.name)
 	for _, h := range n.App.Stages {
-		ml.La("Build a task for h", *h)
+		ml.La("Build a task for h", h)
 		p := rand.Float64()
 		task := Task{
-			wakeUp: Milliseconds(n.loop.GetTime() + h.LocalWork[p]), // TBD
+			wakeup: Milliseconds(n.loop.GetTime() + h.LocalWork(p)), // TBD
 			later: func() {
-				for i, pool := range h.RemoteCalls[] {
-					newc := c.Fanout(pool)
+				for _, pool := range h.RemoteCalls {
+					c.Fanout(pool, n)
 					//					TBD
-					
 				}
-				
 			},
 		}
 		n.addTask(&task)

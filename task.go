@@ -13,7 +13,7 @@ type closure func()
 
 // Task is a structure to track work for an app locally
 type Task struct {
-	wakeUp    Milliseconds
+	wakeup    Milliseconds
 	startTime Milliseconds
 	endPoint  string
 	timeoutMs float64

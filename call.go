@@ -6,7 +6,7 @@ package sim
 
 // Call is a structure to track a remote call
 type Call struct {
-	wakeUp     Milliseconds
+	wakeup     Milliseconds
 	startTime  Milliseconds
 	endPoint   string
 	timeoutMs  float64
@@ -22,7 +22,6 @@ func (c *Call) SendCall(n *Node) {
 	n.callCh <- c // blocking as is
 }
 
-// Fanout 
-func (c * Call) Fanout(endpoint string, n *Node) {
-	
+// Fanout will send a call to an endpoint
+func (c *Call) Fanout(endpoint string, n *Node) {
 }
