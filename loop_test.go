@@ -27,7 +27,7 @@ func TestLoop(t *testing.T) {
 	MakeLB(&lbConf, loop)
 
 	sourceConf := SourceConf{
-		Name: "ngrl", Lambda: 0.5,
+		Name: "ngrl", Lambda: 10,
 		MakeCall: func(s *Source) *Call {
 			c := Call{}
 			c.replyCh = make(chan *Reply, 2)

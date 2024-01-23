@@ -45,6 +45,7 @@ func (lb *LB) GenerateEvent() {
 func (lb *LB) HandleCall(c *Call) {
 	lb.lastSent++
 	poolSize := len(lb.appInstances)
+	ml.La(lb.n.name+" sending call to", lb.lastSent%poolSize)
 	c.SendCall(lb.appInstances[lb.lastSent%poolSize],
 		func(n *Node, r *Reply) {
 			ml.La(n.name+" LB got a reply", *r, *c)

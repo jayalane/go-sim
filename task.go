@@ -29,11 +29,18 @@ func (n *Node) handleTasks() {
 	n.tasksMu.Lock()
 	defer n.tasksMu.Unlock()
 
+	ml.La(n.name+" handle tasks", n.loop.GetTime())
+
 	for {
 		next := n.tasks.Peak()
 		if next == nil {
+			if len(n.tasks) > 0 {
+				panic("wtf")
+			}
+			ml.La(n.name + " no tasks")
 			break
 		}
+
 		if float64(next.priority) < now {
 			item := heap.Pop(&n.tasks)
 			n.HandleTask(item.(*Item).value.(*Task))
@@ -41,6 +48,8 @@ func (n *Node) handleTasks() {
 				len(n.tasks))
 			continue
 		} else {
+			ml.La("Task too young", next.priority, "len is now",
+				len(n.tasks))
 			break
 		}
 	}

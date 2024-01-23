@@ -50,9 +50,9 @@ func (n *Node) addTask(t *Task) {
 		value:    t,
 		priority: int(t.wakeup),
 	}
-	ml.La("Add task", n.name, len(n.tasks), t.wakeup)
+	ml.La("Pre Add task", n.name, len(n.tasks), t.wakeup)
 	heap.Push(&n.tasks, i)
-	ml.La("Add task", n.name, len(n.tasks), t.wakeup)
+	ml.La("Post Add task", n.name, len(n.tasks), t.wakeup)
 }
 
 // HandleCall processes an incoming call
@@ -86,6 +86,10 @@ func (n *Node) handleCalls() {
 	for {
 		next := n.calls.Peak()
 		if next == nil {
+			if len(n.calls) > 0 {
+				panic("wtf")
+			}
+			ml.La(n.name + " no calls")
 			break
 		}
 		if float64(next.priority) < now {
@@ -102,6 +106,8 @@ func (n *Node) handleCalls() {
 			ml.La("Handled call", item.(*Item).value.(*Call), "len is now", len(n.calls))
 			continue
 		} else {
+			ml.La(n.name+" call too young", next.priority, "len is now",
+				len(n.calls))
 			break
 		}
 	}
