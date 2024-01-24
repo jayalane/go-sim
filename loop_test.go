@@ -36,7 +36,7 @@ func TestLoop1(t *testing.T) {
 			c := Call{}
 			c.replyCh = make(chan *Reply, 2)
 			c.timeoutMs = 90.0
-			c.wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
+			c.wakeup = Milliseconds(s.n.loop.GetTime() + 5.0) // really
 			c.endPoint = "count"
 			return &c
 		},
