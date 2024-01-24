@@ -8,6 +8,8 @@ import (
 	"container/heap"
 	"fmt"
 	"math/rand"
+
+	count "github.com/jayalane/go-counter"
 )
 
 // EventCB is called by a source to generate and send the new
@@ -20,11 +22,6 @@ type SourceConf struct {
 	Lambda   float64
 	MakeCall EventCB
 }
-
-const (
-	none = iota
-	sleeping
-)
 
 // Source is a source of events
 type Source struct {
@@ -55,6 +52,7 @@ func (s *Source) Run() {
 // GenerateEvent for a source generates load
 func (s *Source) GenerateEvent() {
 	ml.La("Generate EVENT!", s.n.name, s.n.loop.GetTime())
+	count.Incr("generated")
 	c := s.newEventCb(s)
 	c.startTime = Milliseconds(s.n.loop.GetTime())
 	lb := s.n.loop.GetLB(c.endPoint + "-lb")
@@ -64,6 +62,8 @@ func (s *Source) GenerateEvent() {
 			r *Reply,
 		) {
 			ml.La("Finished EVENT!", s.n.name, s.n.loop.GetTime())
+			count.Incr("generated_finished")
+			count.MarkDistribution("ngrl", float64(s.n.loop.GetTime())-float64(c.startTime)/1000.0)
 		},
 	)
 }
@@ -75,25 +75,27 @@ func (s *Source) HandleCall() {
 
 // NextMillisecond runs all the work due in the last ms for a source
 func (s *Source) NextMillisecond() {
+	numThisMs := float64(0)
+
 	ml.Ls("Source", s.n.name, "running", s.n.loop.GetTime())
 
-	if s.state == sleeping {
-		if Milliseconds(s.n.loop.GetTime()) > s.nextEvent {
-			// make the call
-			s.GenerateEvent()
-			s.state = none
-		}
-
-		return
+	if s.nextEvent <= 0 {
+		timeToSleep := rand.ExpFloat64() / s.lambda
+		s.nextEvent = s.nextEvent + Milliseconds(timeToSleep)
+		ml.Ls("Source", s.n.name, "sleeping for", timeToSleep, "ms")
+		numThisMs++
 	}
 
-	s.state = sleeping
-
-	timeToSleep := rand.ExpFloat64() / s.lambda
-
-	s.nextEvent = Milliseconds(timeToSleep + s.n.loop.GetTime())
-
-	ml.Ls("Source", s.n.name, "sleeping for", timeToSleep, "ms")
+	for Milliseconds(s.n.loop.GetTime()) > s.nextEvent {
+		// make the call
+		s.GenerateEvent()
+		numThisMs++
+		timeToSleep := rand.ExpFloat64() / s.lambda
+		s.nextEvent = Milliseconds(timeToSleep) + s.nextEvent
+		ml.Ls("Source", s.n.name, "sleeping for", timeToSleep, "ms", s.n.loop.GetTime())
+	}
+	count.MarkDistribution("eventsPerMs-"+s.n.name, numThisMs)
+	return
 }
 
 // MakeSource turns a source configuration into the source
