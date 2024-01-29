@@ -10,13 +10,15 @@ import (
 
 var ml *ll.Lll
 
+const bufferSizes = 1_000_000
+
 // Milliseconds is the internal sim time type
 type Milliseconds float64
 
 // Init must be called before any simulation stuff
 // it merely inits the logger
 func Init() {
-	ml = ll.Init("SIM", "network")
+	ml = ll.Init("SIM", "none")
 }
 
 // InitWithLogger is an init where youc an

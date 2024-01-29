@@ -4,16 +4,16 @@
 // discrete event simulation and then run it to generate statistics
 package sim
 
+// RemoteCall is an endpoint and params
+type RemoteCall struct {
+	endpoint string
+	params   map[string]string
+}
+
 // StageConf is the configuration of a stage of app work
 type StageConf struct {
 	LocalWork   ModelCdf
-	RemoteCalls []string
-}
-
-// Stage is a piece of an application run
-type Stage struct {
-	FirstLocalWork Distribution
-	DepsToCall     []*Node
+	RemoteCalls []RemoteCall
 }
 
 // AppConf is the configuration of an application
@@ -35,4 +35,18 @@ func MakeApp(a *AppConf, l *Loop, suffix string) *Node {
 	l.AddNode(&n)
 	n.Run()
 	return &n
+}
+
+// MakeCall generates the call from an old call
+func (r *RemoteCall) MakeCall(n *Node, oldC *Call) *Call {
+	c := Call{}
+	if oldC != nil {
+		c.reqID = oldC.reqID
+	}
+	c.caller = n
+	c.timeoutMs = 90.0
+	c.wakeup = Milliseconds(n.loop.GetTime() + 5.0) // TBD
+	c.endPoint = r.endpoint
+	c.params = r.params
+	return &c
 }

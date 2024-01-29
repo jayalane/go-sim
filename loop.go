@@ -4,6 +4,7 @@ package sim
 
 import (
 	"fmt"
+	"runtime"
 	"sync"
 )
 
@@ -47,17 +48,40 @@ func (l *Loop) Run(length float64) {
 		v.Run()
 	}
 	for ; l.GetTime() < length+1000.0; l.IncrementTime() {
+		var wg sync.WaitGroup
+
+		ml.La("Main loop looping", l.GetTime(), "***********************************************", runtime.NumGoroutine(), goid())
 
 		for i, s := range l.sources {
-			fmt.Println("Call next ms sources", l.time, i, s.n.name)
-			s.NextMillisecond()
+			s := s
+			fmt.Println("Call next ms sources", l.GetTime(), i, s.n.name)
+			ml.La("Adding one to Waitgroup")
+			wg.Add(1) // Add 1 for the first task
+			go func() {
+				defer wg.Done()
+				defer ml.La("Removing one from WG")
+				s.NextMillisecond()
+			}()
 		}
 		for i, n := range l.nodes {
-			ml.Ln("Calling next ms nodes", l.time, n.App.Name, i, n.name)
-			n.NextMillisecond()
+			n := n
+			ml.La("Adding one to Waitgroup")
+			ml.La("Calling next ms nodes", l.time, n.App.Name, i, n.name)
+			wg.Add(1) // Add 1 for the first task
+			go func() {
+				defer wg.Done()
+				defer ml.La("Removing one from WG")
+				n.NextMillisecond()
+			}()
 		}
-		l.broadcaster.Broadcast() // tell everyone the ms is over
+		l.broadcaster.Broadcast(&wg) // tell everyone the ms is over
+		wg.Wait()
 	}
+	for _, n := range l.nodes {
+		n.done <- true
+	}
+
+	ml.La("Exiting main loop", "***********************************************")
 }
 
 // Stats prints out the accumulated stats for the run

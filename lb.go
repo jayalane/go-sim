@@ -6,6 +6,8 @@ package sim
 
 import (
 	"fmt"
+
+	count "github.com/jayalane/go-counter"
 )
 
 // LbConf is the configuration of an application
@@ -43,15 +45,35 @@ func (lb *LB) GenerateEvent() {
 
 // HandleCall does nothing for a base node
 func (lb *LB) HandleCall(c *Call) {
+	ml.La(lb.n.name+": LB got an Incoming call:", c)
 	lb.lastSent++
 	poolSize := len(lb.appInstances)
-	ml.La(lb.n.name+" sending call to", lb.lastSent%poolSize)
-	c.SendCall(lb.appInstances[lb.lastSent%poolSize],
+	ml.La(lb.n.name+": sending call to", lb.lastSent%poolSize)
+	newCall := lb.MakeCall(&lb.n, c, lb.appInstances[lb.lastSent%poolSize])
+	count.IncrSuffix("lb_call_send", lb.n.name)
+	// the next line is able to reuse the call because
+	// it is just an LB
+	newCall.SendCall(lb.appInstances[lb.lastSent%poolSize],
 		func(n *Node, r *Reply) {
-			ml.La(n.name+" LB got a reply", *r, *c)
-			c.replyCh <- r
+			count.Incr("lb_call_get_reply")
+			ml.La(n.name+": LB got a reply", *r, *c)
+			lb.n.replyCh <- r
 		},
 	)
+}
+
+// MakeCall generates the call from an old call
+func (lb *LB) MakeCall(n *Node, oldC *Call, destN *Node) *Call {
+	c := Call{}
+	if oldC != nil {
+		c.reqID = oldC.reqID
+	}
+	c.caller = n
+	c.timeoutMs = 90.0
+	c.wakeup = Milliseconds(n.loop.GetTime() + 5.0) // TBD
+	c.endPoint = destN.name
+	c.params = oldC.params
+	return &c
 }
 
 // MakeLB takes an LB config and a loop and returns an

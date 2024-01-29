@@ -43,7 +43,7 @@ func (s *Source) GetNode() *Node {
 func (s *Source) Run() {
 	ml.La("Doing Run/Init for source ", s.n.name)
 	s.n.msCh = s.n.loop.broadcaster.Subscribe()
-	s.n.callCh = make(chan *Call, 100) // ?
+	s.n.callCh = make(chan *Call, bufferSizes)
 	s.n.tasks = make(PQueue, 0)
 	heap.Init(&s.n.tasks)
 	go s.n.runner()
@@ -52,8 +52,9 @@ func (s *Source) Run() {
 // GenerateEvent for a source generates load
 func (s *Source) GenerateEvent() {
 	ml.La("Generate EVENT!", s.n.name, s.n.loop.GetTime())
-	count.Incr("generated")
+	count.Incr("source_generated")
 	c := s.newEventCb(s)
+	c.caller = &s.n
 	c.startTime = Milliseconds(s.n.loop.GetTime())
 	lb := s.n.loop.GetLB(c.endPoint + "-lb")
 	c.SendCall(&lb.n,
@@ -62,7 +63,7 @@ func (s *Source) GenerateEvent() {
 			r *Reply,
 		) {
 			ml.La("Finished EVENT!", s.n.name, s.n.loop.GetTime())
-			count.Incr("generated_finished")
+			count.Incr("source_generated_finished")
 			count.MarkDistribution("ngrl", float64(s.n.loop.GetTime())-float64(c.startTime)/1000.0)
 		},
 	)
@@ -77,12 +78,12 @@ func (s *Source) HandleCall() {
 func (s *Source) NextMillisecond() {
 	numThisMs := float64(0)
 
-	ml.Ls("Source", s.n.name, "running", s.n.loop.GetTime())
+	ml.La(s.n.name+": ource running", s.n.loop.GetTime())
 
 	if s.nextEvent <= 0 {
 		timeToSleep := rand.ExpFloat64() / s.lambda
 		s.nextEvent = s.nextEvent + Milliseconds(timeToSleep)
-		ml.Ls("Source", s.n.name, "sleeping for", timeToSleep, "ms")
+		ml.La("Source", s.n.name, "sleeping for", timeToSleep, "ms")
 		numThisMs++
 	}
 
@@ -92,7 +93,7 @@ func (s *Source) NextMillisecond() {
 		numThisMs++
 		timeToSleep := rand.ExpFloat64() / s.lambda
 		s.nextEvent = Milliseconds(timeToSleep) + s.nextEvent
-		ml.Ls("Source", s.n.name, "sleeping for", timeToSleep, "ms", s.n.loop.GetTime())
+		ml.La(s.n.name+": Source sleeping for", timeToSleep, "ms", s.n.loop.GetTime())
 	}
 	count.MarkDistribution("eventsPerMs-"+s.n.name, numThisMs)
 	return

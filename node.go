@@ -9,6 +9,8 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	count "github.com/jayalane/go-counter"
 )
 
 // CallCB allows LB to override node
@@ -17,19 +19,64 @@ type CallCB func(c *Call)
 // Node is a simulation particle that
 // can take in or emit work; it is a Node
 type Node struct {
-	loop      *Loop
-	callCh    chan *Call
-	msCh      chan bool
-	tasksMu   sync.Mutex
-	tasks     PQueue
-	callsMu   sync.Mutex
-	calls     PQueue
-	callCB    CallCB
-	done      chan bool
-	name      string
-	resources map[string]float64 // for limits later on
-	stats     map[string]float64
-	App       *AppConf
+	loop             *Loop
+	callCh           chan *Call
+	msCh             chan *sync.WaitGroup
+	tasksMu          sync.Mutex
+	tasks            PQueue
+	callsMu          sync.Mutex
+	calls            PQueue
+	callCB           CallCB
+	pendingCallMap   map[int]*pendingCall
+	pendingCallMapMu sync.RWMutex
+	replyCh          chan *Reply
+	done             chan bool
+	name             string
+	resources        map[string]float64 // for limits later on
+	stats            map[string]float64
+	App              *AppConf
+}
+
+type pendingCall struct {
+	reqID int
+	reply *Reply
+	call  *Call
+	f     HandleReply
+}
+
+// InitCallMap inits the pending call hash and
+// starts a go routine to listen
+func (n *Node) InitCallMap() {
+	n.replyCh = make(chan *Reply, 100000)
+	n.pendingCallMapMu.Lock()
+	n.pendingCallMap = make(map[int]*pendingCall)
+	n.pendingCallMapMu.Unlock()
+	go func() {
+		ml.La(n.name+" starting reply loop", goid())
+
+		for {
+			select {
+			case response := <-n.replyCh:
+				ml.La(n.name+": Got a reply", response)
+				n.pendingCallMapMu.RLock()
+				val, ok := n.pendingCallMap[response.reqID]
+				n.pendingCallMapMu.RUnlock()
+				if !ok {
+					ml.La(n.name+": Dropping unknown reqid", response.reqID)
+					continue
+				}
+				n.pendingCallMapMu.Lock()
+				delete(n.pendingCallMap, response.reqID) // slight race but short repeats not issue
+				n.pendingCallMapMu.Unlock()
+				ml.La(n.name + ": about to callback reply")
+				val.f(n, response)
+				ml.La(n.name+": done handling reply", n.loop.GetTime(), response)
+			case <-time.After(60 * time.Second):
+				ml.La(n.name+": one minute with no replies", n.loop.GetTime())
+
+			}
+		}
+	}()
 }
 
 func (n *Node) addCall(j *Call) {
@@ -40,6 +87,7 @@ func (n *Node) addCall(j *Call) {
 		priority: int(j.wakeup),
 	}
 	ml.La("Add call", n.name, len(n.calls), j.wakeup)
+	count.IncrSyncSuffix("node_add_call", n.name)
 	heap.Push(&n.calls, i)
 }
 
@@ -51,30 +99,55 @@ func (n *Node) addTask(t *Task) {
 		priority: int(t.wakeup),
 	}
 	ml.La("Pre Add task", n.name, len(n.tasks), t.wakeup)
+	count.IncrSyncSuffix("node_add_task", n.name)
 	heap.Push(&n.tasks, i)
 	ml.La("Post Add task", n.name, len(n.tasks), t.wakeup)
 }
 
 // HandleCall processes an incoming call
 func (n *Node) HandleCall(c *Call) {
-	ml.La("Got a call:", c, n.name)
-	for _, h := range n.App.Stages {
-		ml.La("Build a task for h", h)
+	ml.La(n.name+": Got an incoming call:", c, n.name)
+	tasks := make([]Task, len(n.App.Stages))
+
+	for i, h := range n.App.Stages {
+		ml.La(n.name+": Build a task for h", h)
+		count.IncrSyncSuffix("node_task_make", n.name)
 		p := rand.Float64()
-		task := Task{
+		tasks[i] = Task{
 			wakeup: Milliseconds(n.loop.GetTime() + h.LocalWork(p)), // TBD
-			later: func() {
-				ml.La("Running closure for task", n.name)
-				for _, pool := range h.RemoteCalls {
-					ml.La("Fanning out from", n.name, pool)
-					c.Fanout(pool, n)
-				}
-			},
-			call: c,
+			call:   c,
+			reqID:  c.reqID,
 		}
-		ml.La("First Later is", task.wakeup, task.later, len(n.tasks))
-		n.addTask(&task)
-		ml.La("Second Later is", task.later, len(n.tasks))
+		tasks[i].later = func() {
+			count.IncrSyncSuffix("node_task_run", n.name)
+			ml.La(n.name + ": Running closure for task")
+			for _, rc := range h.RemoteCalls {
+				rc := rc
+				ml.La(n.name+": Fanning out to", rc.endpoint, rc)
+				count.IncrSyncSuffix("node_make_remote_call", n.name)
+				newCall := rc.MakeCall(n, c)
+				lb := n.loop.GetLB(rc.endpoint + "-lb")
+
+				newCall.SendCall(&lb.n,
+					func(
+						n *Node,
+						r *Reply,
+					) {
+						ml.La(n.name+": Got a reply", *r)
+						count.IncrSyncSuffix("node_task_get_reply", n.name)
+						n.replyCh <- r
+					},
+				)
+			}
+		}
+	}
+	for i := 0; i < len(tasks)-1; i++ {
+		tasks[i].nextTask = &tasks[i+1]
+	}
+	for i := 0; i < len(tasks); i++ {
+		ml.La(n.name+": First Later is", tasks[i].wakeup, tasks[i].later, len(n.tasks))
+		n.addTask(&tasks[i])
+		ml.La(n.name+": Second Later is", tasks[i].later, len(n.tasks))
 	}
 }
 
@@ -89,24 +162,24 @@ func (n *Node) handleCalls() {
 			if len(n.calls) > 0 {
 				panic("wtf")
 			}
-			ml.La(n.name + " no calls")
+			ml.La(n.name + ": no calls")
 			break
 		}
 		if float64(next.priority) < now {
 			item := heap.Pop(&n.calls)
 			call := item.(*Item).value.(*Call)
 			if n.callCB != nil {
-				ml.La("Got call for", n.name, "LB")
+				ml.La(n.name + ":Got call for LB")
 				n.callCB(call)
 				// poorly implemented bug riddled CLOS
 			} else {
-				ml.La("Got call for", n.name, " node")
+				ml.La(n.name + ": got call for node")
 				n.HandleCall(call)
 			}
-			ml.La("Handled call", item.(*Item).value.(*Call), "len is now", len(n.calls))
+			ml.La(n.name+": Handled call", item.(*Item).value.(*Call), "len is now", len(n.calls))
 			continue
 		} else {
-			ml.La(n.name+" call too young", next.priority, "len is now",
+			ml.La(n.name+": call too young", next.priority, "len is now",
 				len(n.calls))
 			break
 		}
@@ -114,7 +187,7 @@ func (n *Node) handleCalls() {
 }
 
 func (n *Node) runner() {
-	ml.La("Starting runner for", n.name)
+	ml.La(n.name+": Starting runner goid", goid())
 	if n.name == "" {
 		panic("Unnamed node")
 	}
@@ -122,20 +195,23 @@ func (n *Node) runner() {
 		select {
 		case c := <-n.callCh:
 			n.addCall(c)
-			ml.Ln("Node got call!!!!!!!", n.name, *c)
+			ml.La(n.name+" Node got call ", *c)
 
-		case ms := <-n.msCh:
+		case msWg := <-n.msCh:
 			n.callsMu.Lock()
-			ml.Ln("Raw Node got ms", n.name, ms, len(n.calls), len(n.tasks))
+			ml.La(n.name+": Raw Node got ms", len(n.calls), len(n.tasks))
 			n.callsMu.Unlock()
 			n.handleCalls()
 			n.handleTasks()
+			ml.La(n.name + ": Ending msWG")
+			ml.La("Removing one from WG")
+			msWg.Done()
 
 		case <-time.After(60 * time.Second):
-			ml.Ls("Node without events for 60 seconds", n.name)
+			ml.La("Node without events for 60 seconds")
 
 		case <-n.done:
-			ml.La("Node shutting down on done", n.name)
+			ml.La(n.name + ":Node shutting down on done")
 
 			return
 		}
@@ -150,12 +226,12 @@ func (n *Node) GetNode() *Node {
 // Run starts the goroutine for this node
 // it is getting the init time stuff also
 func (n *Node) Run() {
-	ml.La("Doing Run/Init for", n.name)
-	if n.name == "count-lb" {
-		ml.La("Got count-lb")
-	}
+	ml.La(n.name, ": Doing Run/Init", goid())
 
-	n.callCh = make(chan *Call, 100) // ?
+	n.InitCallMap()
+
+	n.callCh = make(chan *Call, bufferSizes) // ?
+	n.done = make(chan bool, 2)
 	n.msCh = n.loop.broadcaster.Subscribe()
 	n.calls = make(PQueue, 0)
 	n.tasks = make(PQueue, 0)
@@ -167,10 +243,10 @@ func (n *Node) Run() {
 
 // NextMillisecond runs all the work due in the next ms
 func (n *Node) NextMillisecond() {
-	ml.Ls("Node", n.name, "running", n.loop.GetTime())
+	ml.La(n.name+":  running", n.loop.GetTime())
 }
 
 // GenerateEvent does nothing for a base node
 func (n *Node) GenerateEvent() {
-	ml.Ls("Node", n.name, "has no events to generate")
+	ml.La("Node", n.name, "has no events to generate")
 }
