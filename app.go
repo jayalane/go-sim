@@ -10,9 +10,13 @@ type RemoteCall struct {
 	params   map[string]string
 }
 
+// RemoteCallFuncType is a callback to filter out remote calls based on params
+type RemoteCallFuncType func(endpoint string, params map[string]string) bool
+
 // StageConf is the configuration of a stage of app work
 type StageConf struct {
 	LocalWork   ModelCdf
+	FilterCall  RemoteCallFuncType
 	RemoteCalls []RemoteCall
 }
 
@@ -47,6 +51,10 @@ func (r *RemoteCall) MakeCall(n *Node, oldC *Call) *Call {
 	c.timeoutMs = 90.0
 	c.wakeup = Milliseconds(n.loop.GetTime() + 5.0) // TBD
 	c.endPoint = r.endpoint
-	c.params = r.params
+	if oldC.params != nil {
+		c.params = oldC.params
+	} else {
+		c.params = r.params
+	}
 	return &c
 }

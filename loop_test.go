@@ -7,6 +7,7 @@ import (
 	"net/http"
 	_ "net/http/pprof" // for pprof
 	// "os"
+	"strings"
 	"testing"
 
 	count "github.com/jayalane/go-counter"
@@ -20,7 +21,7 @@ func TestLoop1(t *testing.T) {
 		fmt.Println(http.ListenAndServe(":6060", nil))
 	}()
 
-	// ll.SetWriter(os.Stdout)
+	//	ll.SetWriter(os.Stdout)
 	count.InitCounters()
 
 	Init()
@@ -56,6 +57,20 @@ func TestLoop1(t *testing.T) {
 	loop.Run(100) // msecs
 	loop.Stats()
 	count.LogCounters()
+}
+
+func FilterCallFunc(
+	endpoint string,
+	params map[string]string,
+) bool {
+	if strings.Contains(endpoint, "count") {
+		return true
+	}
+	_, ok := params["DNF"]
+	if ok {
+		return false
+	}
+	return true
 }
 
 // need DNF
@@ -115,7 +130,8 @@ func TestLoop2(t *testing.T) {
 
 	proxyCConfAry := []StageConf{
 		{
-			LocalWork: uniformCDF(1, 5),
+			LocalWork:  uniformCDF(1, 5),
+			FilterCall: FilterCallFunc,
 			RemoteCalls: []RemoteCall{
 				{
 					endpoint: "proxy-a",

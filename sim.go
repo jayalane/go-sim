@@ -18,7 +18,7 @@ type Milliseconds float64
 // Init must be called before any simulation stuff
 // it merely inits the logger
 func Init() {
-	ml = ll.Init("SIM", "none")
+	ml = ll.Init("SIM", "state")
 }
 
 // InitWithLogger is an init where youc an

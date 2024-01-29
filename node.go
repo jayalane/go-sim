@@ -120,10 +120,18 @@ func (n *Node) HandleCall(c *Call) {
 		}
 		tasks[i].later = func() {
 			count.IncrSyncSuffix("node_task_run", n.name)
-			ml.La(n.name + ": Running closure for task")
+			ml.La(n.name+": Running closure for task", h, c.params)
 			for _, rc := range h.RemoteCalls {
 				rc := rc
 				ml.La(n.name+": Fanning out to", rc.endpoint, rc)
+				if h.FilterCall != nil {
+					ml.La(n.name+": checking filter rule", c.params)
+					doCall := h.FilterCall(rc.endpoint, c.params)
+					if !doCall {
+						ml.La(n.name+": skipping", rc.endpoint, "due to filter")
+						continue
+					}
+				}
 				count.IncrSyncSuffix("node_make_remote_call", n.name)
 				newCall := rc.MakeCall(n, c)
 				lb := n.loop.GetLB(rc.endpoint + "-lb")
@@ -169,11 +177,11 @@ func (n *Node) handleCalls() {
 			item := heap.Pop(&n.calls)
 			call := item.(*Item).value.(*Call)
 			if n.callCB != nil {
-				ml.La(n.name + ":Got call for LB")
+				ml.La(n.name+":Got call for LB", call.params)
 				n.callCB(call)
 				// poorly implemented bug riddled CLOS
 			} else {
-				ml.La(n.name + ": got call for node")
+				ml.La(n.name+": got call for node", call.params)
 				n.HandleCall(call)
 			}
 			ml.La(n.name+": Handled call", item.(*Item).value.(*Call), "len is now", len(n.calls))

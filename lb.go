@@ -50,6 +50,7 @@ func (lb *LB) HandleCall(c *Call) {
 	poolSize := len(lb.appInstances)
 	ml.La(lb.n.name+": sending call to", lb.lastSent%poolSize)
 	newCall := lb.MakeCall(&lb.n, c, lb.appInstances[lb.lastSent%poolSize])
+	newCall.params = c.params
 	count.IncrSuffix("lb_call_send", lb.n.name)
 	// the next line is able to reuse the call because
 	// it is just an LB
