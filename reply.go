@@ -2,7 +2,7 @@
 
 package sim
 
-// Reply is a structure to track a remote call result
+// Reply is a structure to track a remote call result.
 type Reply struct {
 	reqID  int
 	length uint64

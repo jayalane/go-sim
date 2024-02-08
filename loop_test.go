@@ -5,28 +5,31 @@ package sim
 import (
 	"fmt"
 	"net/http"
-	_ "net/http/pprof" // for pprof
-	// "os"
+	_ "net/http/pprof" //nolint:gosec // for pprof
+	"os"
 	"strings"
 	"testing"
 
 	count "github.com/jayalane/go-counter"
-	// ll "github.com/jayalane/go-lll"
+	ll "github.com/jayalane/go-lll"
 )
 
-// TestLoop1 runs a small simulation
-func TestLoop1(t *testing.T) {
+const longTestMsecs = 10_000
+
+// TestLoop1 runs a small simulation.
+func TestLoop1(_ *testing.T) {
 	// start the profiler
 	go func() {
 		fmt.Println(http.ListenAndServe(":6060", nil))
 	}()
 
-	//	ll.SetWriter(os.Stdout)
+	ll.SetWriter(os.Stdout)
 	count.InitCounters()
+	count.SetResolution(count.MediumRes)
 
 	Init()
 
-	loop := NewLoop("default")
+	loop := NewLoop()
 
 	stageConfAry := []StageConf{{LocalWork: uniformCDF(1, 10)}}
 	appConf := AppConf{
@@ -47,12 +50,12 @@ func TestLoop1(t *testing.T) {
 			c.timeoutMs = 90.0
 			c.wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
 			c.endPoint = "serverA"
+
 			return &c
 		},
 	}
 
-	src := MakeSource(&sourceConf, loop)
-	loop.AddSource(src)
+	MakeSource(&sourceConf, loop)
 
 	loop.Run(100) // msecs
 	loop.Stats()
@@ -66,17 +69,16 @@ func FilterCallFunc(
 	if strings.Contains(endpoint, "count") {
 		return true
 	}
+
 	_, ok := params["DNF"]
-	if ok {
-		return false
-	}
-	return true
+
+	return !ok
 }
 
 // need DNF
-// TestLoop2 runs slightly large simulation of rlproxyserv
-func TestLoop2(t *testing.T) {
-	loop := NewLoop("default2")
+// TestLoop2 runs slightly large simulation of rlproxyserv.
+func TestLoop2(_ *testing.T) {
+	loop := NewLoop()
 
 	proxyAConfAry := []StageConf{
 		{
@@ -113,7 +115,7 @@ func TestLoop2(t *testing.T) {
 				}, {
 					endpoint: "count-b",
 				}, {
-					endpoint: "count-c",
+					endpoint: "proxy-c",
 					params:   map[string]string{"DNF": "1"},
 				},
 			},
@@ -190,12 +192,12 @@ func TestLoop2(t *testing.T) {
 			c.timeoutMs = 90.0
 			c.wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
 			c.endPoint = "proxy-a"
+
 			return &c
 		},
 	}
 
-	srcA := MakeSource(&sourceAConf, loop)
-	loop.AddSource(srcA)
+	MakeSource(&sourceAConf, loop)
 
 	sourceBConf := SourceConf{
 		Name: "ngrl-b", Lambda: 0.10, // per ms
@@ -205,12 +207,12 @@ func TestLoop2(t *testing.T) {
 			c.timeoutMs = 90.0
 			c.wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
 			c.endPoint = "proxy-b"
+
 			return &c
 		},
 	}
 
-	srcB := MakeSource(&sourceBConf, loop)
-	loop.AddSource(srcB)
+	MakeSource(&sourceBConf, loop)
 
 	sourceCConf := SourceConf{
 		Name: "ngrl-c", Lambda: 0.10, // per ms
@@ -220,14 +222,14 @@ func TestLoop2(t *testing.T) {
 			c.timeoutMs = 90.0
 			c.wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
 			c.endPoint = "proxy-c"
+
 			return &c
 		},
 	}
 
-	srcC := MakeSource(&sourceCConf, loop)
-	loop.AddSource(srcC)
+	MakeSource(&sourceCConf, loop)
 
-	loop.Run(10000) // msecs
+	loop.Run(longTestMsecs)
 	loop.Stats()
 	count.LogCounters()
 }

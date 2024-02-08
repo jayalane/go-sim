@@ -13,50 +13,53 @@ import (
 )
 
 // EventCB is called by a source to generate and send the new
-// work
+// work.
 type EventCB func(s *Source) *Call
 
-// SourceConf configures an event source
+// SourceConf configures an event source.
 type SourceConf struct {
 	Name     string
 	Lambda   float64
 	MakeCall EventCB
 }
 
-// Source is a source of events
+// Source is a source of events.
 type Source struct {
 	n Node
 	// Later:  (can't say to do due to linting) have concept of
 	// customer flow)
-	state      int
+	// state      int
 	nextEvent  Milliseconds
 	lambda     float64
 	newEventCb EventCB // only for sources
 }
 
-// GetNode returns the embedded Node
+// GetNode returns the embedded Node.
 func (s *Source) GetNode() *Node {
 	return &s.n
 }
 
-// Run starts the goroutine for this node
+// Run starts the goroutine for this node.
 func (s *Source) Run() {
 	ml.La("Doing Run/Init for source ", s.n.name)
 	s.n.msCh = s.n.loop.broadcaster.Subscribe()
 	s.n.callCh = make(chan *Call, bufferSizes)
 	s.n.tasks = make(PQueue, 0)
 	heap.Init(&s.n.tasks)
+
 	go s.n.runner()
 }
 
-// GenerateEvent for a source generates load
+// GenerateEvent for a source generates load.
 func (s *Source) GenerateEvent() {
 	ml.La("Generate EVENT!", s.n.name, s.n.loop.GetTime())
 	count.Incr("source_generated")
+
 	c := s.newEventCb(s)
 	c.caller = &s.n
 	c.startTime = Milliseconds(s.n.loop.GetTime())
 	lb := s.n.loop.GetLB(c.endPoint + "-lb")
+
 	c.SendCall(&lb.n,
 		func(
 			n *Node,
@@ -64,25 +67,25 @@ func (s *Source) GenerateEvent() {
 		) {
 			ml.La("Finished EVENT!", s.n.name, s.n.loop.GetTime())
 			count.Incr("source_generated_finished")
-			count.MarkDistribution("ngrl", float64(s.n.loop.GetTime())-float64(c.startTime)/1000.0)
+			count.MarkDistribution("ngrl", s.n.loop.GetTime()-float64(c.startTime)/1000.0)
 		},
 	)
 }
 
-// HandleCall for a source does nothing
+// HandleCall for a source does nothing.
 func (s *Source) HandleCall() {
 	panic("Source got a task?" + s.n.name + fmt.Sprintf("%f", s.n.loop.GetTime()))
 }
 
-// NextMillisecond runs all the work due in the last ms for a source
+// NextMillisecond runs all the work due in the last ms for a source.
 func (s *Source) NextMillisecond() {
 	numThisMs := float64(0)
 
-	ml.La(s.n.name+": ource running", s.n.loop.GetTime())
+	ml.La(s.n.name+": source running next ms", s.n.loop.GetTime())
 
 	if s.nextEvent <= 0 {
-		timeToSleep := rand.ExpFloat64() / s.lambda
-		s.nextEvent = s.nextEvent + Milliseconds(timeToSleep)
+		timeToSleep := rand.ExpFloat64()/s.lambda + s.n.loop.GetTime()
+		s.nextEvent += Milliseconds(timeToSleep)
 		ml.La("Source", s.n.name, "sleeping for", timeToSleep, "ms")
 		numThisMs++
 	}
@@ -90,21 +93,23 @@ func (s *Source) NextMillisecond() {
 	for Milliseconds(s.n.loop.GetTime()) > s.nextEvent {
 		// make the call
 		s.GenerateEvent()
+
 		numThisMs++
+
 		timeToSleep := rand.ExpFloat64() / s.lambda
 		s.nextEvent = Milliseconds(timeToSleep) + s.nextEvent
 		ml.La(s.n.name+": Source sleeping for", timeToSleep, "ms", s.n.loop.GetTime())
 	}
 	count.MarkDistribution("eventsPerMs-"+s.n.name, numThisMs)
-	return
 }
 
-// MakeSource turns a source configuration into the source
+// MakeSource turns a source configuration into the source.
 func MakeSource(sourceConf *SourceConf, l *Loop) *Source {
 	source := Source{}
 	source.n.name = sourceConf.Name
 	source.lambda = sourceConf.Lambda
 	source.newEventCb = sourceConf.MakeCall
+	l.AddSource(&source)
 
 	return &source
 }

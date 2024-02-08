@@ -14,14 +14,14 @@ import (
 // It should be >= 0 for all p.
 type ModelCdf func(p float64) float64
 
-// Distribution is an interface for configuring a distribution of an RV
+// Distribution is an interface for configuring a distribution of an RV.
 type Distribution interface {
 	getTimeToSleepMs()
-	setCdf(ModelCdf)
+	setCdf(f ModelCdf)
 }
 
 // uniformCDF returns the CDF of a uniform random variable over [a, b]
-// Given a probability p (0 to 1), it returns the corresponding z such that P(Z <= z) = p
+// Given a probability p (0 to 1), it returns the corresponding z such that P(Z <= z) = p.
 func uniformCDF(a, b float64) ModelCdf {
 	return func(p float64) float64 {
 		if p < 0 {
@@ -43,10 +43,8 @@ func normalCDF(mu, sigma float64) ModelCdf {
 		Mu:    mu,
 		Sigma: sigma,
 	}
-	return func(p float64) float64 {
-		// Return the CDF value for p
-		return norm.CDF(p)
-	}
+
+	return norm.CDF
 }
 
 // logNormalCDF returns the CDF of a Log-Normal distribution with mean mu and standard deviation sigma for the logarithm of the distribution.
@@ -56,9 +54,7 @@ func logNormalCDF(mu, sigma float64) func(x float64) float64 {
 		Sigma: sigma,
 	}
 
-	return func(x float64) float64 {
-		return logNorm.CDF(x)
-	}
+	return logNorm.CDF
 }
 
 // paretoCDF returns the CDF of a Pareto distribution with scale xm and shape alpha.
@@ -68,9 +64,7 @@ func paretoCDF(xm, alpha float64) func(x float64) float64 {
 		Alpha: alpha,
 	}
 
-	return func(x float64) float64 {
-		return pareto.CDF(x)
-	}
+	return pareto.CDF
 }
 
 /*

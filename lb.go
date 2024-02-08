@@ -5,45 +5,49 @@
 package sim
 
 import (
-	"fmt"
+	"strconv"
 
 	count "github.com/jayalane/go-counter"
 )
 
-// LbConf is the configuration of an application
+const (
+	lbSuffix = "-lb"
+)
+
+// LbConf is the configuration of an application.
 type LbConf struct {
 	Name string
 	App  *AppConf
 }
 
-// LB is a load balancer
+// LB is a load balancer.
 type LB struct {
 	n            Node
 	appInstances []*Node
 	lastSent     int
 }
 
-// GetNode returns the Node struct for this interface
+// GetNode returns the Node struct for this interface.
 func (lb *LB) GetNode() *Node {
 	return &lb.n
 }
 
-// Run starts the goroutine for this node
+// Run starts the goroutine for this node.
 func (lb *LB) Run() {
 	lb.n.Run()
 }
 
-// NextMillisecond runs all the work due in the next ms
+// NextMillisecond runs all the work due in the next ms.
 func (lb *LB) NextMillisecond() {
 	lb.n.NextMillisecond()
 }
 
-// GenerateEvent does nothing for a base node
+// GenerateEvent does nothing for a base node.
 func (lb *LB) GenerateEvent() {
 	lb.n.GenerateEvent()
 }
 
-// HandleCall does nothing for a base node
+// HandleCall does nothing for a base node.
 func (lb *LB) HandleCall(c *Call) {
 	ml.La(lb.n.name+": LB got an Incoming call:", c)
 	lb.lastSent++
@@ -51,9 +55,9 @@ func (lb *LB) HandleCall(c *Call) {
 	ml.La(lb.n.name+": sending call to", lb.lastSent%poolSize)
 	newCall := lb.MakeCall(&lb.n, c, lb.appInstances[lb.lastSent%poolSize])
 	newCall.params = c.params
+
 	count.IncrSuffix("lb_call_send", lb.n.name)
-	// the next line is able to reuse the call because
-	// it is just an LB
+
 	newCall.SendCall(lb.appInstances[lb.lastSent%poolSize],
 		func(n *Node, r *Reply) {
 			count.Incr("lb_call_get_reply")
@@ -63,31 +67,34 @@ func (lb *LB) HandleCall(c *Call) {
 	)
 }
 
-// MakeCall generates the call from an old call
+// MakeCall generates the call from an old call.
 func (lb *LB) MakeCall(n *Node, oldC *Call, destN *Node) *Call {
 	c := Call{}
+
 	if oldC != nil {
 		c.reqID = oldC.reqID
 	}
+
 	c.caller = n
 	c.timeoutMs = 90.0
-	c.wakeup = Milliseconds(n.loop.GetTime() + 5.0) // TBD
+	c.wakeup = Milliseconds(n.loop.GetTime() + 5.0) //nolint:gomnd // TBD
 	c.endPoint = destN.name
 	c.params = oldC.params
+
 	return &c
 }
 
 // MakeLB takes an LB config and a loop and returns an
-// LB integrated into that loop
+// LB integrated into that loop.
 func MakeLB(lbConf *LbConf, l *Loop) *LB {
 	lb := LB{}
 	lb.n.App = lbConf.App
-	lb.n.name = lb.n.App.Name + "-lb"
+	lb.n.name = lb.n.App.Name + lbSuffix
 	lb.n.callCB = lb.HandleCall
 	lb.appInstances = make([]*Node, lbConf.App.Size)
 
 	for i := uint16(0); i < lbConf.App.Size; i++ {
-		n := MakeApp(lbConf.App, l, "-"+fmt.Sprintf("%d", i))
+		n := MakeApp(lbConf.App, l, "-"+strconv.FormatUint(uint64(i), 10))
 		lb.appInstances[i] = n
 	}
 

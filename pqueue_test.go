@@ -9,7 +9,7 @@ import (
 
 // TestPQueue creates a PriorityQueue with some items, adds and
 // manipulates an item, and then removes the items in priority order.
-func TestPQueue(t *testing.T) {
+func TestPQueue(_ *testing.T) {
 	// Some items and their priorities.
 	items := map[string]int{
 		"banana": 3, "apple": 2, "pear": 4,
@@ -19,6 +19,7 @@ func TestPQueue(t *testing.T) {
 	// establish the priority queue (heap) invariants.
 	pq := make(PQueue, len(items))
 	i := 0
+
 	for value, priority := range items {
 		pq[i] = &Item{
 			value:    value,
@@ -27,6 +28,7 @@ func TestPQueue(t *testing.T) {
 		}
 		i++
 	}
+
 	heap.Init(&pq)
 
 	// Insert a new item and then modify its priority.
@@ -35,11 +37,21 @@ func TestPQueue(t *testing.T) {
 		priority: 1,
 	}
 	heap.Push(&pq, item)
-	pq.update(item, item.value.(string), 5)
+
+	val, ok := item.value.(string)
+	if !ok {
+		panic("type conversion failed in test")
+	}
+
+	pq.update(item, val, 5)
 
 	// Take the items out; they arrive in decreasing priority order.
 	for pq.Len() > 0 {
-		item := heap.Pop(&pq).(*Item)
+		item, ok := heap.Pop(&pq).(*Item)
+		if !ok {
+			panic("type conversion failed in test 2")
+		}
+
 		fmt.Printf("%.2d:%s ", item.priority, item.value)
 	}
 }

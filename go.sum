@@ -1,7 +1,7 @@
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/jayalane/go-counter v0.0.0-20231116033401-bed7d8dc9a78 h1:MA8rz6tj0tHhlhsCZn0NcHeVkQrym51sx9/1Y2UhfkQ=
-github.com/jayalane/go-counter v0.0.0-20231116033401-bed7d8dc9a78/go.mod h1:aPMpGkuhCohy0WmElKiKchT9b/vwIJZn6xZ0kRlErWc=
+github.com/jayalane/go-counter v0.0.0-20240131184348-03dfa530d3c4 h1:5vY4A3NqgbHZLAPe/yuNGBIqtjGkECTqqVht//r4EQc=
+github.com/jayalane/go-counter v0.0.0-20240131184348-03dfa530d3c4/go.mod h1:aPMpGkuhCohy0WmElKiKchT9b/vwIJZn6xZ0kRlErWc=
 github.com/jayalane/go-lll v0.0.0-20231116033444-c12e53c5e47a h1:0omFFiQz04d2sFnwQQY+mYHJpe/eThrX4N7lZMXn6x8=
 github.com/jayalane/go-lll v0.0.0-20231116033444-c12e53c5e47a/go.mod h1:JpmP6hDb3yF5STyrUmkwvVr+Dcgfi3yrA0zc9iq3+e0=
 github.com/jonboulle/clockwork v0.4.0 h1:p4Cf1aMWXnXAUh8lVfewRBx1zaTSYKrKMF2g3ST4RZ4=

@@ -24,11 +24,12 @@ func (pq PQueue) Less(i, j int) bool {
 	return pq[i].priority < pq[j].priority
 }
 
-// Peak returns the next item to be
+// Peak returns the next item to be.
 func (pq *PQueue) Peak() *Item {
 	if len(*pq) == 0 {
 		return nil
 	}
+
 	return (*pq)[0]
 }
 
@@ -39,16 +40,21 @@ func (pq PQueue) Swap(i, j int) {
 }
 
 // Push adds a value to the pqueue - called by
-// head.Interface
+// head.Interface.
 func (pq *PQueue) Push(x any) {
 	n := len(*pq)
-	item := x.(*Item)
+
+	item, ok := x.(*Item)
+	if !ok {
+		panic("Got non-item for pqueue")
+	}
+
 	item.index = n
 	*pq = append(*pq, item)
 }
 
 // Pop removes a value from the pqueue -
-// called by head.Interface
+// called by head.Interface.
 func (pq *PQueue) Pop() any {
 	old := *pq
 	n := len(old)
@@ -56,6 +62,7 @@ func (pq *PQueue) Pop() any {
 	old[n-1] = nil  // avoid memory leak
 	item.index = -1 // for safety
 	*pq = old[0 : n-1]
+
 	return item
 }
 

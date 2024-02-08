@@ -4,19 +4,20 @@ package sim
 
 import (
 	"bytes"
-	"errors"
+	//	"errors"
 	"runtime"
 	"strconv"
 )
 
-var (
-	goroutinePrefix = []byte("goroutine ")
-	errBadStack     = errors.New("invalid runtime.Stack output")
-)
+const thirtyTwo = 32
+
+var goroutinePrefix = []byte("goroutine ")
+
+//	errBadStack     = errors.New("invalid runtime.Stack output")
 
 // This is terrible, slow, and should never be used.
 func goid() int {
-	buf := make([]byte, 32)
+	buf := make([]byte, thirtyTwo)
 	n := runtime.Stack(buf, false)
 	buf = buf[:n]
 	// goroutine 1 [running]: ...

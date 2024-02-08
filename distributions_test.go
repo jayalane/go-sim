@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestDistribution(t *testing.T) {
+func TestDistribution(_ *testing.T) {
 	for _, f := range []ModelCdf{
 		uniformCDF(1, 5),
 		normalCDF(3, 1),
@@ -15,7 +15,7 @@ func TestDistribution(t *testing.T) {
 		paretoCDF(5, 1),
 	} {
 		for x := 0; x < 1000; x++ {
-			p := rand.Float64()
+			p := rand.Float64() //nolint:gosec
 			fmt.Printf("p is %f RV is %f\n", p, f(p))
 		}
 		fmt.Println("Next RV type")

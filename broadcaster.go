@@ -27,8 +27,9 @@ func (b *Broadcaster) Subscribe() chan *sync.WaitGroup {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	ch := make(chan *sync.WaitGroup, 2)
+	ch := make(chan *sync.WaitGroup, smallChannelSize)
 	b.subscribers = append(b.subscribers, ch)
+
 	return ch
 }
 

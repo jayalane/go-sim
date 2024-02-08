@@ -4,7 +4,7 @@
 // discrete event simulation and then run it to generate statistics
 package sim
 
-// this file is for mapping app conf to tasks and then doing them
+// this file is for mapping app conf to tasks and then doing them.
 import (
 	"container/heap"
 	"math/rand"
@@ -12,16 +12,14 @@ import (
 
 type closure func()
 
-// Task is a structure to track work for an app locally
+// Task is a structure to track work for an app locally.
 type Task struct {
-	wakeup    Milliseconds
-	startTime Milliseconds
-	reqID     int
-	endPoint  string
-	timeoutMs float64
-	call      *Call
-	later     closure
-	nextTask  *Task
+	wakeup Milliseconds
+	// startTime Milliseconds
+	reqID    int
+	call     *Call
+	later    closure
+	nextTask *Task
 }
 
 func (n *Node) handleTasks() {
@@ -37,27 +35,38 @@ func (n *Node) handleTasks() {
 			if len(n.tasks) > 0 {
 				panic("wtf")
 			}
+
 			ml.La(n.name + ": no tasks")
+
 			break
 		}
 
 		if float64(next.priority) <= now {
 			item := heap.Pop(&n.tasks)
-			n.HandleTask(item.(*Item).value.(*Task))
-			ml.La(n.name+": Handled task", item.(*Item).value.(*Task), "len is now",
+
+			task, ok := item.(*Item).value.(*Task)
+			if !ok {
+				panic("task pqueue had non task")
+			}
+
+			n.HandleTask(task)
+			ml.La(n.name+": Handled task", task, "len is now",
 				len(n.tasks))
+
 			continue
-		} else {
-			ml.La(n.name+": Task too young", next.priority, "len is now",
-				len(n.tasks))
-			break
 		}
+
+		ml.La(n.name+": Task too young", next.priority, "len is now",
+			len(n.tasks))
+
+		break
 	}
 }
 
-// HandleTask for node reads the app config and generates the work
+// HandleTask for node reads the app config and generates the work.
 func (n *Node) HandleTask(t *Task) {
 	ml.La(n.name+": Got a task to do", *t)
+
 	if t.later != nil {
 		t.later()
 		ml.La(n.name + ": ran closure")
@@ -70,7 +79,7 @@ func (n *Node) HandleTask(t *Task) {
 	} else {
 		ml.La(n.name + ": last task, send result")
 		r := Reply{}
-		p := rand.Float64()
+		p := rand.Float64() //nolint:gosec
 		r.reqID = t.reqID
 		r.length = uint64(n.App.ReplyLen(p))
 		r.status = 0
