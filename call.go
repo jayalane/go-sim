@@ -29,7 +29,7 @@ type Call struct {
 }
 
 var (
-	callNumber      = 0
+	callNumber      = 22222
 	callNumberMutex sync.RWMutex
 )
 
@@ -47,13 +47,12 @@ func IncrCallNumber() int {
 func (c *Call) SendCall(callee *Node, f HandleReply) {
 	reqID := IncrCallNumber()
 	c.reqID = reqID
-
-	callee.pendingCallMapMu.Lock()
-	callee.pendingCallMap[c.reqID] = &pendingCall{reply: nil, call: c, f: f}
-	callee.pendingCallMapMu.Unlock()
+	c.caller.pendingCallMapMu.Lock()
+	c.caller.pendingCallMap[c.reqID] = &pendingCall{reply: nil, call: c, f: f}
+	c.caller.pendingCallMapMu.Unlock()
 	select {
 	case callee.callCh <- c:
-		count.Incr("call_ch_sent")
+		count.IncrSyncSuffix("call_ch_sent", "call")
 	default:
 		panic("call channel full")
 	}
