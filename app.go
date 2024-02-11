@@ -45,10 +45,7 @@ func MakeApp(a *AppConf, l *Loop, suffix string) *Node {
 // MakeCall generates the call from an old call.
 func (r *RemoteCall) MakeCall(n *Node, oldC *Call) *Call {
 	c := Call{}
-	if oldC != nil {
-		c.reqID = oldC.reqID
-	}
-
+	c.reqID = IncrCallNumber()
 	c.caller = n
 	c.timeoutMs = 90.0
 	c.wakeup = Milliseconds(n.loop.GetTime() + 5.0) // nolint:gomnd //TBD
