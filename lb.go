@@ -42,19 +42,23 @@ func (lb *LB) NextMillisecond() {
 	lb.n.NextMillisecond()
 }
 
-// GenerateEvent does nothing for a base node.
+// GenerateEvent does nothing for an LB
 func (lb *LB) GenerateEvent() {
 	lb.n.GenerateEvent()
 }
 
 // HandleCall does nothing for a base node.
 func (lb *LB) HandleCall(c *Call) {
-	ml.La(lb.n.name+": LB got an Incoming call:", c)
+	ml.La(lb.n.name+": LB got an Incoming call:", c, c.reqID, c.caller.name)
+
 	lb.lastSent++
 	poolSize := len(lb.appInstances)
-	ml.La(lb.n.name+": sending call to", lb.lastSent%poolSize)
+
+	ml.La(lb.n.name+": sending call", c.reqID, "to", lb.appInstances[lb.lastSent%poolSize].name)
+
 	newCall := lb.MakeCall(&lb.n, c, lb.appInstances[lb.lastSent%poolSize])
 	newCall.params = c.params
+	newCall.caller = &lb.n
 
 	count.IncrSuffix("lb_call_send", lb.n.name)
 
@@ -62,7 +66,8 @@ func (lb *LB) HandleCall(c *Call) {
 		func(n *Node, r *Reply) {
 			count.Incr("lb_call_get_reply")
 			ml.La(n.name+": LB got a reply", *r, *c)
-			lb.n.replyCh <- r
+			r.reqID = c.reqID
+			c.caller.replyCh <- r
 		},
 	)
 }
