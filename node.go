@@ -70,6 +70,7 @@ func (n *Node) InitCallMap() {
 					continue
 				}
 
+				count.IncrSyncSuffix("call_reply_known", n.name)
 				n.pendingCallMapMu.Lock()
 				delete(n.pendingCallMap, response.reqID) // slight race but short repeats not issue
 				n.pendingCallMapMu.Unlock()
@@ -92,7 +93,7 @@ func (n *Node) addCall(j *Call) {
 		priority: int(j.wakeup),
 	}
 
-	ml.La("Add call", n.name, len(n.calls), j.wakeup)
+	ml.La(n.name+": Add call", j.reqID, j.caller.name, len(n.calls), j.wakeup)
 	count.IncrSyncSuffix("node_add_call", n.name)
 	heap.Push(&n.calls, i)
 }
@@ -106,10 +107,9 @@ func (n *Node) addTask(t *Task) {
 		priority: int(t.wakeup),
 	}
 
-	ml.La("Pre Add task", n.name, len(n.tasks), t.wakeup)
+	ml.La(n.name+": Pre Add task", len(n.tasks), t.wakeup, t.call.reqID, t.call.caller.name)
 	count.IncrSyncSuffix("node_add_task", n.name)
 	heap.Push(&n.tasks, i)
-	ml.La("Post Add task", n.name, len(n.tasks), t.wakeup)
 }
 
 // HandleCall processes an incoming call.
@@ -118,7 +118,7 @@ func (n *Node) HandleCall(c *Call) {
 	tasks := make([]Task, len(n.App.Stages))
 
 	for i, h := range n.App.Stages {
-		ml.La(n.name+": Build a task for h", h)
+		ml.La(n.name+": Build a task for h", h, c.reqID, c.caller.name)
 		count.IncrSyncSuffix("node_task_make", n.name)
 
 		p := rand.Float64() //nolint:gosec
@@ -131,18 +131,18 @@ func (n *Node) HandleCall(c *Call) {
 
 		tasks[i].later = func() {
 			count.IncrSyncSuffix("node_task_run", n.name)
-			ml.La(n.name+": Running closure for task", h, c.params)
+			ml.La(n.name+": Running closure for task", h, c.params, c.reqID, c.caller.name)
 
 			for _, rc := range h.RemoteCalls {
 				rc := rc
-				ml.La(n.name+": Fanning out to", rc.endpoint, rc)
+				ml.La(n.name+": Fanning out to", rc.endpoint, rc, c.reqID, c.caller.name)
 
 				if h.FilterCall != nil {
-					ml.La(n.name+": checking filter rule", c.params)
+					ml.La(n.name+": checking filter rule", c.params, c.reqID, c.caller.name)
 
 					doCall := h.FilterCall(rc.endpoint, c.params)
 					if !doCall {
-						ml.La(n.name+": skipping", rc.endpoint, "due to filter")
+						ml.La(n.name+": skipping", rc.endpoint, "due to filter", c.reqID, c.caller.name)
 						count.IncrSyncSuffix("node_task_remote_call_filter",
 							n.name)
 
@@ -204,11 +204,11 @@ func (n *Node) handleCalls() {
 			}
 
 			if n.callCB != nil {
-				ml.La(n.name+":Got call for LB", call.params)
+				ml.La(n.name+": Got call for LB", call.params, call.reqID, call.caller.name)
 				// poorly implemented bug riddled CLOS
 				n.callCB(call)
 			} else {
-				ml.La(n.name+": got call for node", call.params)
+				ml.La(n.name+": got call for node", call.params, call.reqID, call.caller.name)
 				n.HandleCall(call)
 			}
 
@@ -237,7 +237,7 @@ func (n *Node) runner() {
 		select {
 		case c := <-n.callCh:
 			n.addCall(c)
-			ml.La(n.name+" Node got call ", *c)
+			ml.La(n.name+" Node got call ", c.reqID, c.caller.name)
 
 		case msWg := <-n.msCh:
 			n.callsMu.Lock()

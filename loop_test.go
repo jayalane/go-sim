@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" //nolint:gosec // for pprof
-	"os"
+	//	"os"
 	"strings"
 	"testing"
 
 	count "github.com/jayalane/go-counter"
-	ll "github.com/jayalane/go-lll"
+	// ll "github.com/jayalane/go-lll"
 )
 
-const longTestMsecs = 10_000
+const longTestMsecs = 3_000
 
 // TestLoop1 runs a small simulation.
 func TestLoop1(_ *testing.T) {
@@ -23,7 +23,7 @@ func TestLoop1(_ *testing.T) {
 		fmt.Println(http.ListenAndServe(":6060", nil))
 	}()
 
-	ll.SetWriter(os.Stdout)
+	// ll.SetWriter(os.Stdout)
 	count.InitCounters()
 	count.SetResolution(count.MediumRes)
 
@@ -43,7 +43,7 @@ func TestLoop1(_ *testing.T) {
 	MakeLB(&lbConf, loop)
 
 	sourceConf := SourceConf{
-		Name: "ngrl", Lambda: 0.010, // per ms
+		Name: "external", Lambda: 0.10, // per ms
 		MakeCall: func(s *Source) *Call {
 			c := Call{}
 			c.reqID = IncrCallNumber()

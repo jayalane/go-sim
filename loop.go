@@ -59,12 +59,10 @@ func (l *Loop) Run(length float64) {
 		for i, s := range l.sources {
 			s := s
 			fmt.Println("Call next ms sources", l.GetTime(), i, s.n.name)
-			ml.La("Adding one to Waitgroup")
 			wg.Add(1) // Add 1 for the first task
 
 			go func() {
 				defer wg.Done()
-				defer ml.La("Removing one from WG")
 				s.NextMillisecond()
 			}()
 		}
@@ -72,13 +70,11 @@ func (l *Loop) Run(length float64) {
 		for i, n := range l.nodes {
 			n := n
 
-			ml.La("Adding one to Waitgroup")
-			ml.La("Calling next ms nodes", l.time, n.App.Name, i, n.name)
+			ml.La(n.name+": Calling next ms", l.time, "app", n.App.Name, "order", i)
 			wg.Add(1) // Add 1 for the first task.
 
 			go func() {
 				defer wg.Done()
-				defer ml.La("Removing one from WG")
 				n.NextMillisecond()
 			}()
 		}

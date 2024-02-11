@@ -5,7 +5,6 @@
 package sim
 
 import (
-	"container/heap"
 	"fmt"
 	"math/rand"
 
@@ -42,17 +41,11 @@ func (s *Source) GetNode() *Node {
 // Run starts the goroutine for this node.
 func (s *Source) Run() {
 	ml.La("Doing Run/Init for source ", s.n.name)
-	s.n.msCh = s.n.loop.broadcaster.Subscribe()
-	s.n.callCh = make(chan *Call, bufferSizes)
-	s.n.tasks = make(PQueue, 0)
-	heap.Init(&s.n.tasks)
-
-	go s.n.runner()
+	s.n.Run()
 }
 
 // GenerateEvent for a source generates load.
 func (s *Source) GenerateEvent() {
-	ml.La("Generate EVENT!", s.n.name, s.n.loop.GetTime())
 	count.Incr("source_generated")
 
 	c := s.newEventCb(s)
@@ -60,14 +53,16 @@ func (s *Source) GenerateEvent() {
 	c.startTime = Milliseconds(s.n.loop.GetTime())
 	lb := s.n.loop.GetLB(c.endPoint + "-lb")
 
+	ml.La("Generate EVENT!", s.n.name, s.n.loop.GetTime(), c.reqID, lb.n.name)
+
 	c.SendCall(&lb.n,
 		func(
 			n *Node,
 			r *Reply,
 		) {
-			ml.La("Finished EVENT!", s.n.name, s.n.loop.GetTime())
+			ml.La("Finished EVENT!", s.n.name, s.n.loop.GetTime(), n.name, r)
 			count.Incr("source_generated_finished")
-			count.MarkDistribution("ngrl", s.n.loop.GetTime()-float64(c.startTime)/1000.0)
+			count.MarkDistribution(s.n.name, s.n.loop.GetTime()-float64(c.startTime)/1000.0)
 		},
 	)
 }
@@ -86,7 +81,9 @@ func (s *Source) NextMillisecond() {
 	if s.nextEvent <= 0 {
 		timeToSleep := rand.ExpFloat64()/s.lambda + s.n.loop.GetTime()
 		s.nextEvent += Milliseconds(timeToSleep)
+
 		ml.La("Source", s.n.name, "sleeping for", timeToSleep, "ms")
+
 		numThisMs++
 	}
 
