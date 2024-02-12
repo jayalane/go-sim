@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" //nolint:gosec // for pprof
-	//	"os"
+	"os"
 	"strings"
 	"testing"
 
 	count "github.com/jayalane/go-counter"
-	// ll "github.com/jayalane/go-lll"
+	ll "github.com/jayalane/go-lll"
 )
 
 const longTestMsecs = 3_000
@@ -23,7 +23,7 @@ func TestLoop1(_ *testing.T) {
 		fmt.Println(http.ListenAndServe(":6060", nil))
 	}()
 
-	// ll.SetWriter(os.Stdout)
+	ll.SetWriter(os.Stdout)
 	count.InitCounters()
 	count.SetResolution(count.MediumRes)
 
@@ -82,7 +82,8 @@ func TestLoop2(_ *testing.T) {
 
 	proxyAConfAry := []StageConf{
 		{
-			LocalWork: uniformCDF(1, 5),
+			LocalWork:  uniformCDF(1, 5),
+			FilterCall: FilterCallFunc,
 			RemoteCalls: []RemoteCall{
 				{
 					endpoint: "count-a",
@@ -97,7 +98,7 @@ func TestLoop2(_ *testing.T) {
 		},
 	}
 	proxyAConf := AppConf{
-		Name:     "proxy-a",
+		Name:     "proxy",
 		Size:     5,
 		Stages:   proxyAConfAry,
 		ReplyLen: uniformCDF(200, 500),
@@ -107,7 +108,8 @@ func TestLoop2(_ *testing.T) {
 
 	proxyBConfAry := []StageConf{
 		{
-			LocalWork: uniformCDF(1, 5),
+			LocalWork:  uniformCDF(1, 5),
+			FilterCall: FilterCallFunc,
 			RemoteCalls: []RemoteCall{
 				{
 					endpoint: "proxy-a",
@@ -122,7 +124,7 @@ func TestLoop2(_ *testing.T) {
 		},
 	}
 	proxyBConf := AppConf{
-		Name:     "proxy-b",
+		Name:     "proxy",
 		Size:     5,
 		Stages:   proxyBConfAry,
 		ReplyLen: uniformCDF(200, 20000),
@@ -148,7 +150,7 @@ func TestLoop2(_ *testing.T) {
 		},
 	}
 	proxyCConf := AppConf{
-		Name:     "proxy-c",
+		Name:     "proxy",
 		Size:     5,
 		Stages:   proxyCConfAry,
 		ReplyLen: uniformCDF(100, 200),
@@ -158,7 +160,7 @@ func TestLoop2(_ *testing.T) {
 
 	countConfAry := []StageConf{{LocalWork: uniformCDF(1, 3)}}
 	countAConf := AppConf{
-		Name:     "count-a",
+		Name:     "count",
 		Size:     5,
 		Stages:   countConfAry,
 		ReplyLen: uniformCDF(100, 200),
@@ -167,7 +169,7 @@ func TestLoop2(_ *testing.T) {
 	MakeLB(&countAlbConf, loop)
 
 	countBConf := AppConf{
-		Name:     "count-b",
+		Name:     "count",
 		Size:     5,
 		Stages:   countConfAry,
 		ReplyLen: uniformCDF(100, 200),
@@ -176,7 +178,7 @@ func TestLoop2(_ *testing.T) {
 	MakeLB(&countBlbConf, loop)
 
 	countCConf := AppConf{
-		Name:     "count-c",
+		Name:     "count",
 		Size:     5,
 		Stages:   countConfAry,
 		ReplyLen: uniformCDF(100, 200),
