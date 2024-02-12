@@ -42,12 +42,12 @@ func (lb *LB) NextMillisecond() {
 	lb.n.NextMillisecond()
 }
 
-// GenerateEvent does nothing for an LB
+// GenerateEvent does nothing for an LB.
 func (lb *LB) GenerateEvent() {
 	lb.n.GenerateEvent()
 }
 
-// HandleCall does nothing for a base node.
+// HandleCall just round robin forwards for an LB.
 func (lb *LB) HandleCall(c *Call) {
 	ml.La(lb.n.name+": LB got an Incoming call:", c, c.reqID, c.caller.name)
 
@@ -76,6 +76,8 @@ func (lb *LB) HandleCall(c *Call) {
 func (lb *LB) MakeCall(n *Node, oldC *Call, destN *Node) *Call {
 	c := Call{}
 
+	count.IncrSyncSuffix("remote_call_generated", n.name)
+
 	if oldC != nil {
 		c.reqID = oldC.reqID
 	}
@@ -94,12 +96,12 @@ func (lb *LB) MakeCall(n *Node, oldC *Call, destN *Node) *Call {
 func MakeLB(lbConf *LbConf, l *Loop) *LB {
 	lb := LB{}
 	lb.n.App = lbConf.App
-	lb.n.name = lb.n.App.Name + lbSuffix
+	lb.n.name = lbConf.Name + lbSuffix
 	lb.n.callCB = lb.HandleCall
 	lb.appInstances = make([]*Node, lbConf.App.Size)
 
 	for i := uint16(0); i < lbConf.App.Size; i++ {
-		n := MakeApp(lbConf.App, l, "-"+strconv.FormatUint(uint64(i), 10))
+		n := MakeApp(lbConf, l, "-"+strconv.FormatUint(uint64(i), 10))
 		lb.appInstances[i] = n
 	}
 

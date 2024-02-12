@@ -118,8 +118,9 @@ func (n *Node) HandleCall(c *Call) {
 	tasks := make([]Task, len(n.App.Stages))
 
 	for i, h := range n.App.Stages {
-		ml.La(n.name+": Build a task for h", h, c.reqID, c.caller.name)
+		ml.La(n.name+": Build a task for h", h, c.reqID, c.caller.name, i)
 		count.IncrSyncSuffix("node_task_make", n.name)
+		count.IncrSyncSuffix("node_task_make_"+c.caller.name, n.name)
 
 		p := rand.Float64() //nolint:gosec
 
@@ -135,7 +136,6 @@ func (n *Node) HandleCall(c *Call) {
 
 			for _, rc := range h.RemoteCalls {
 				rc := rc
-				ml.La(n.name+": Fanning out to", rc.endpoint, rc, c.reqID, c.caller.name)
 
 				if h.FilterCall != nil {
 					ml.La(n.name+": checking filter rule", c.params, c.reqID, c.caller.name)
@@ -150,7 +150,9 @@ func (n *Node) HandleCall(c *Call) {
 					}
 				}
 
+				ml.La(n.name+": Fanning out to", rc.endpoint, rc, c.reqID, c.caller.name)
 				count.IncrSyncSuffix("node_make_remote_call", n.name)
+				count.IncrSyncSuffix("node_make_remote_call_"+rc.endpoint, n.name)
 				newCall := rc.MakeCall(n, c)
 				lb := n.loop.GetLB(rc.endpoint + "-lb")
 
@@ -161,6 +163,7 @@ func (n *Node) HandleCall(c *Call) {
 					) {
 						ml.La(n.name+": Got a reply", *r)
 						count.IncrSyncSuffix("node_task_get_reply", n.name)
+						count.IncrSyncSuffix("node_task_get_reply_"+rc.endpoint, n.name)
 						n.replyCh <- r
 					},
 				)
@@ -173,7 +176,7 @@ func (n *Node) HandleCall(c *Call) {
 	}
 
 	for i := 0; i < len(tasks); i++ {
-		ml.La(n.name+": First Later is", tasks[i].wakeup, tasks[i].later, len(n.tasks))
+		ml.La(n.name+": adding task", tasks[i].wakeup, tasks[i].later, len(n.tasks))
 		n.addTask(&tasks[i])
 	}
 }
@@ -236,8 +239,8 @@ func (n *Node) runner() {
 	for {
 		select {
 		case c := <-n.callCh:
+			ml.La(n.name+": Node got call ", c.reqID, c.caller.name)
 			n.addCall(c)
-			ml.La(n.name+" Node got call ", c.reqID, c.caller.name)
 
 		case msWg := <-n.msCh:
 			n.callsMu.Lock()
@@ -246,11 +249,10 @@ func (n *Node) runner() {
 			n.handleCalls()
 			n.handleTasks()
 			ml.La(n.name + ": Ending msWG")
-			ml.La("Removing one from WG")
 			msWg.Done()
 
 		case <-time.After(secondsInMin * time.Second):
-			ml.La("Node without events for 60 seconds")
+			ml.La(n.name + "Node without events for 60 seconds")
 
 		case <-n.done:
 			ml.La(n.name + ":Node shutting down on done")

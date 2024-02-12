@@ -51,11 +51,11 @@ func (n *Node) handleTasks() {
 
 			n.HandleTask(task)
 			ml.La(n.name+": Handled task", task, "len is now",
-				len(n.tasks), "reqid", task.call.reqID, task.call.caller.name)
+				len(n.tasks), "reqid", task.call.reqID, "from", task.call.caller.name)
 
 			continue
 		}
-
+		// like an else here thanks lint
 		ml.La(n.name+": Task too young", next.priority, "len is now",
 			len(n.tasks))
 

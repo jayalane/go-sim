@@ -4,6 +4,10 @@
 // discrete event simulation and then run it to generate statistics
 package sim
 
+import (
+	count "github.com/jayalane/go-counter"
+)
+
 // RemoteCall is an endpoint and params.
 type RemoteCall struct {
 	endpoint string
@@ -28,13 +32,14 @@ type AppConf struct {
 	Stages   []StageConf
 }
 
-// MakeApp takes and app config and a loop and returns a
-// node integrated into that loop.
-func MakeApp(a *AppConf, l *Loop, suffix string) *Node {
+// MakeApp takes and lb config and a loop and returns a
+// node integrated into that loop. LB config
+// is needed so name is per pool not per app.
+func MakeApp(lb *LbConf, l *Loop, suffix string) *Node {
 	n := Node{}
 
-	n.App = a
-	n.name = a.Name + suffix
+	n.App = lb.App
+	n.name = lb.Name + suffix
 
 	l.AddNode(&n)
 	n.Run()
@@ -44,6 +49,8 @@ func MakeApp(a *AppConf, l *Loop, suffix string) *Node {
 
 // MakeCall generates the call from an old call.
 func (r *RemoteCall) MakeCall(n *Node, oldC *Call) *Call {
+	count.IncrSyncSuffix("remote_call_generated", n.name)
+
 	c := Call{}
 	c.reqID = IncrCallNumber()
 	c.caller = n

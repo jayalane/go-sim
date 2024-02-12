@@ -41,7 +41,6 @@ func (b *Broadcaster) Broadcast(wg *sync.WaitGroup) {
 
 	for _, ch := range b.subscribers {
 		wg.Add(1)
-		ml.La("Adding one to Waitgroup")
 		select {
 		case ch <- wg:
 			count.IncrSync("broadcaster_broadcast_output")
