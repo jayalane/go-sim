@@ -9,10 +9,10 @@ import (
 
 func TestDistribution(_ *testing.T) {
 	for _, f := range []ModelCdf{
-		uniformCDF(1, 5),
-		normalCDF(3, 1),
-		logNormalCDF(2, 1),
-		paretoCDF(5, 1),
+		UniformCDF(1, 5),
+		NormalCDF(3, 1),
+		LogNormalCDF(2, 1),
+		ParetoCDF(5, 1),
 	} {
 		for x := 0; x < 1000; x++ {
 			p := rand.Float64() //nolint:gosec

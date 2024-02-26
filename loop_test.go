@@ -14,7 +14,10 @@ import (
 	ll "github.com/jayalane/go-lll"
 )
 
-const longTestMsecs = 3_000
+const (
+	longTestMsecs  = 10_000
+	longTestLambda = 140
+)
 
 // TestLoop1 runs a small simulation.
 func TestLoop1(_ *testing.T) {
@@ -25,18 +28,18 @@ func TestLoop1(_ *testing.T) {
 
 	ll.SetWriter(os.Stdout)
 	count.InitCounters()
-	count.SetResolution(count.MediumRes)
+	count.SetResolution(count.HighRes)
 
 	Init()
 
 	loop := NewLoop()
 
-	stageConfAry := []StageConf{{LocalWork: uniformCDF(1, 10)}}
+	stageConfAry := []StageConf{{LocalWork: UniformCDF(1, 10)}}
 	appConf := AppConf{
 		Name:     "serverA",
 		Size:     5,
 		Stages:   stageConfAry,
-		ReplyLen: uniformCDF(200, 20000),
+		ReplyLen: UniformCDF(200, 20000),
 	}
 
 	lbConf := LbConf{Name: "serverA", App: &appConf}
@@ -82,7 +85,7 @@ func TestLoop2(_ *testing.T) {
 
 	proxyAConfAry := []StageConf{
 		{
-			LocalWork:  uniformCDF(1, 5),
+			LocalWork:  UniformCDF(1, 5),
 			FilterCall: FilterCallFunc,
 			RemoteCalls: []RemoteCall{
 				{
@@ -101,14 +104,14 @@ func TestLoop2(_ *testing.T) {
 		Name:     "proxy",
 		Size:     5,
 		Stages:   proxyAConfAry,
-		ReplyLen: uniformCDF(200, 500),
+		ReplyLen: UniformCDF(200, 500),
 	}
 	proxyAlbConf := LbConf{Name: "proxy-a", App: &proxyAConf}
 	MakeLB(&proxyAlbConf, loop)
 
 	proxyBConfAry := []StageConf{
 		{
-			LocalWork:  uniformCDF(1, 5),
+			LocalWork:  UniformCDF(1, 5),
 			FilterCall: FilterCallFunc,
 			RemoteCalls: []RemoteCall{
 				{
@@ -127,14 +130,14 @@ func TestLoop2(_ *testing.T) {
 		Name:     "proxy",
 		Size:     5,
 		Stages:   proxyBConfAry,
-		ReplyLen: uniformCDF(200, 20000),
+		ReplyLen: UniformCDF(200, 20000),
 	}
 	proxyBlbConf := LbConf{Name: "proxy-b", App: &proxyBConf}
 	MakeLB(&proxyBlbConf, loop)
 
 	proxyCConfAry := []StageConf{
 		{
-			LocalWork:  uniformCDF(1, 5),
+			LocalWork:  UniformCDF(1, 5),
 			FilterCall: FilterCallFunc,
 			RemoteCalls: []RemoteCall{
 				{
@@ -153,17 +156,17 @@ func TestLoop2(_ *testing.T) {
 		Name:     "proxy",
 		Size:     5,
 		Stages:   proxyCConfAry,
-		ReplyLen: uniformCDF(100, 200),
+		ReplyLen: UniformCDF(100, 200),
 	}
 	proxyClbConf := LbConf{Name: "proxy-c", App: &proxyCConf}
 	MakeLB(&proxyClbConf, loop)
 
-	countConfAry := []StageConf{{LocalWork: uniformCDF(1, 3)}}
+	countConfAry := []StageConf{{LocalWork: UniformCDF(1, 3)}}
 	countAConf := AppConf{
 		Name:     "count",
 		Size:     5,
 		Stages:   countConfAry,
-		ReplyLen: uniformCDF(100, 200),
+		ReplyLen: UniformCDF(100, 200),
 	}
 	countAlbConf := LbConf{Name: "count-a", App: &countAConf}
 	MakeLB(&countAlbConf, loop)
@@ -172,7 +175,7 @@ func TestLoop2(_ *testing.T) {
 		Name:     "count",
 		Size:     5,
 		Stages:   countConfAry,
-		ReplyLen: uniformCDF(100, 200),
+		ReplyLen: UniformCDF(100, 200),
 	}
 	countBlbConf := LbConf{Name: "count-b", App: &countBConf}
 	MakeLB(&countBlbConf, loop)
@@ -181,13 +184,13 @@ func TestLoop2(_ *testing.T) {
 		Name:     "count",
 		Size:     5,
 		Stages:   countConfAry,
-		ReplyLen: uniformCDF(100, 200),
+		ReplyLen: UniformCDF(100, 200),
 	}
 	countClbConf := LbConf{Name: "count-c", App: &countCConf}
 	MakeLB(&countClbConf, loop)
 
 	sourceAConf := SourceConf{
-		Name: "ngrl-a", Lambda: 0.1, // per ms
+		Name: "ngrl-a", Lambda: longTestLambda, // per ms
 		MakeCall: func(s *Source) *Call {
 			c := Call{}
 			c.reqID = IncrCallNumber()
@@ -202,7 +205,7 @@ func TestLoop2(_ *testing.T) {
 	MakeSource(&sourceAConf, loop)
 
 	sourceBConf := SourceConf{
-		Name: "ngrl-b", Lambda: 0.10, // per ms
+		Name: "ngrl-b", Lambda: longTestLambda, // per ms
 		MakeCall: func(s *Source) *Call {
 			c := Call{}
 			c.reqID = IncrCallNumber()
@@ -217,7 +220,7 @@ func TestLoop2(_ *testing.T) {
 	MakeSource(&sourceBConf, loop)
 
 	sourceCConf := SourceConf{
-		Name: "ngrl-c", Lambda: 0.10, // per ms
+		Name: "ngrl-c", Lambda: longTestLambda, // per ms
 		MakeCall: func(s *Source) *Call {
 			c := Call{}
 			c.reqID = IncrCallNumber()
