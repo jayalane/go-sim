@@ -15,15 +15,15 @@ type HandleReply func(*Node, *Reply)
 
 // Call is a structure to track a remote call.
 type Call struct {
-	wakeup    Milliseconds
-	startTime Milliseconds
-	endPoint  string
-	timeoutMs float64
-	reqID     int
+	Wakeup    Milliseconds
+	StartTime Milliseconds
+	Endpoint  string
+	TimeoutMs float64
+	ReqID     int
 	//	length     uint64
 	//	id1        uint64
 	// id2        uint64
-	params map[string]string
+	Params map[string]string
 	// connection *Connection
 	caller *Node
 }
@@ -46,9 +46,9 @@ func IncrCallNumber() int {
 // SendCall sends the call to the callee node channel.
 func (c *Call) SendCall(callee *Node, f HandleReply) {
 	reqID := IncrCallNumber()
-	c.reqID = reqID
+	c.ReqID = reqID
 	c.caller.pendingCallMapMu.Lock()
-	c.caller.pendingCallMap[c.reqID] = &pendingCall{reply: nil, call: c, f: f}
+	c.caller.pendingCallMap[c.ReqID] = &pendingCall{reply: nil, call: c, f: f}
 	c.caller.pendingCallMapMu.Unlock()
 	select {
 	case callee.callCh <- c:

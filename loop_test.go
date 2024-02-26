@@ -49,10 +49,10 @@ func TestLoop1(_ *testing.T) {
 		Name: "external", Lambda: 0.10, // per ms
 		MakeCall: func(s *Source) *Call {
 			c := Call{}
-			c.reqID = IncrCallNumber()
-			c.timeoutMs = 90.0
-			c.wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
-			c.endPoint = "serverA"
+			c.ReqID = IncrCallNumber()
+			c.TimeoutMs = 90.0
+			c.Wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
+			c.Endpoint = "serverA"
 
 			return &c
 		},
@@ -89,13 +89,13 @@ func TestLoop2(_ *testing.T) {
 			FilterCall: FilterCallFunc,
 			RemoteCalls: []RemoteCall{
 				{
-					endpoint: "count-a",
+					Endpoint: "count-a",
 				}, {
-					endpoint: "proxy-b",
-					params:   map[string]string{"DNF": "1"},
+					Endpoint: "proxy-b",
+					Params:   map[string]string{"DNF": "1"},
 				}, {
-					endpoint: "proxy-c",
-					params:   map[string]string{"DNF": "1"},
+					Endpoint: "proxy-c",
+					Params:   map[string]string{"DNF": "1"},
 				},
 			},
 		},
@@ -115,13 +115,13 @@ func TestLoop2(_ *testing.T) {
 			FilterCall: FilterCallFunc,
 			RemoteCalls: []RemoteCall{
 				{
-					endpoint: "proxy-a",
-					params:   map[string]string{"DNF": "1"},
+					Endpoint: "proxy-a",
+					Params:   map[string]string{"DNF": "1"},
 				}, {
-					endpoint: "count-b",
+					Endpoint: "count-b",
 				}, {
-					endpoint: "proxy-c",
-					params:   map[string]string{"DNF": "1"},
+					Endpoint: "proxy-c",
+					Params:   map[string]string{"DNF": "1"},
 				},
 			},
 		},
@@ -141,13 +141,13 @@ func TestLoop2(_ *testing.T) {
 			FilterCall: FilterCallFunc,
 			RemoteCalls: []RemoteCall{
 				{
-					endpoint: "proxy-a",
-					params:   map[string]string{"DNF": "1"},
+					Endpoint: "proxy-a",
+					Params:   map[string]string{"DNF": "1"},
 				}, {
-					endpoint: "proxy-b",
-					params:   map[string]string{"DNF": "1"},
+					Endpoint: "proxy-b",
+					Params:   map[string]string{"DNF": "1"},
 				}, {
-					endpoint: "count-c",
+					Endpoint: "count-c",
 				},
 			},
 		},
@@ -193,10 +193,10 @@ func TestLoop2(_ *testing.T) {
 		Name: "ngrl-a", Lambda: longTestLambda, // per ms
 		MakeCall: func(s *Source) *Call {
 			c := Call{}
-			c.reqID = IncrCallNumber()
-			c.timeoutMs = 90.0
-			c.wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
-			c.endPoint = "proxy-a"
+			c.ReqID = IncrCallNumber()
+			c.TimeoutMs = 90.0
+			c.Wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
+			c.Endpoint = "proxy-a"
 
 			return &c
 		},
@@ -208,10 +208,10 @@ func TestLoop2(_ *testing.T) {
 		Name: "ngrl-b", Lambda: longTestLambda, // per ms
 		MakeCall: func(s *Source) *Call {
 			c := Call{}
-			c.reqID = IncrCallNumber()
-			c.timeoutMs = 90.0
-			c.wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
-			c.endPoint = "proxy-b"
+			c.ReqID = IncrCallNumber()
+			c.TimeoutMs = 90.0
+			c.Wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
+			c.Endpoint = "proxy-b"
 
 			return &c
 		},
@@ -223,10 +223,10 @@ func TestLoop2(_ *testing.T) {
 		Name: "ngrl-c", Lambda: longTestLambda, // per ms
 		MakeCall: func(s *Source) *Call {
 			c := Call{}
-			c.reqID = IncrCallNumber()
-			c.timeoutMs = 90.0
-			c.wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
-			c.endPoint = "proxy-c"
+			c.ReqID = IncrCallNumber()
+			c.TimeoutMs = 90.0
+			c.Wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
+			c.Endpoint = "proxy-c"
 
 			return &c
 		},

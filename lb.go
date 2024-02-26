@@ -49,15 +49,15 @@ func (lb *LB) GenerateEvent() {
 
 // HandleCall just round robin forwards for an LB.
 func (lb *LB) HandleCall(c *Call) {
-	ml.La(lb.n.name+": LB got an Incoming call:", c, c.reqID, c.caller.name)
+	ml.La(lb.n.name+": LB got an Incoming call:", c, c.ReqID, c.caller.name)
 
 	lb.lastSent++
 	poolSize := len(lb.appInstances)
 
-	ml.La(lb.n.name+": sending call", c.reqID, "to", lb.appInstances[lb.lastSent%poolSize].name)
+	ml.La(lb.n.name+": sending call", c.ReqID, "to", lb.appInstances[lb.lastSent%poolSize].name)
 
 	newCall := lb.MakeCall(&lb.n, c, lb.appInstances[lb.lastSent%poolSize])
-	newCall.params = c.params
+	newCall.Params = c.Params
 	newCall.caller = &lb.n
 
 	count.IncrSuffix("lb_call_send", lb.n.name)
@@ -66,7 +66,7 @@ func (lb *LB) HandleCall(c *Call) {
 		func(n *Node, r *Reply) {
 			count.Incr("lb_call_get_reply")
 			ml.La(n.name+": LB got a reply", *r, *c)
-			r.reqID = c.reqID
+			r.reqID = c.ReqID
 			c.caller.replyCh <- r
 		},
 	)
@@ -79,14 +79,14 @@ func (lb *LB) MakeCall(n *Node, oldC *Call, destN *Node) *Call {
 	count.IncrSyncSuffix("remote_call_generated", n.name)
 
 	if oldC != nil {
-		c.reqID = oldC.reqID
+		c.ReqID = oldC.ReqID
 	}
 
 	c.caller = n
-	c.timeoutMs = 90.0
-	c.wakeup = Milliseconds(n.loop.GetTime() + 5.0) //nolint:gomnd // TBD
-	c.endPoint = destN.name
-	c.params = oldC.params
+	c.TimeoutMs = 90.0
+	c.Wakeup = Milliseconds(n.loop.GetTime() + 5.0) //nolint:gomnd // TBD
+	c.Endpoint = destN.name
+	c.Params = oldC.Params
 
 	return &c
 }

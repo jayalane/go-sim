@@ -50,10 +50,10 @@ func (s *Source) GenerateEvent() {
 
 	c := s.newEventCb(s)
 	c.caller = &s.n
-	c.startTime = Milliseconds(s.n.loop.GetTime())
-	lb := s.n.loop.GetLB(c.endPoint + "-lb")
+	c.StartTime = Milliseconds(s.n.loop.GetTime())
+	lb := s.n.loop.GetLB(c.Endpoint + "-lb")
 
-	ml.La("Generate EVENT!", s.n.name, s.n.loop.GetTime(), c.reqID, lb.n.name)
+	ml.La("Generate EVENT!", s.n.name, s.n.loop.GetTime(), c.ReqID, lb.n.name)
 
 	c.SendCall(&lb.n,
 		func(
@@ -62,7 +62,7 @@ func (s *Source) GenerateEvent() {
 		) {
 			ml.La("Finished EVENT!", s.n.name, s.n.loop.GetTime(), n.name, r)
 			count.Incr("source_generated_finished")
-			count.MarkDistribution(s.n.name, (s.n.loop.GetTime()-float64(c.startTime))/1000.0)
+			count.MarkDistribution(s.n.name, (s.n.loop.GetTime()-float64(c.StartTime))/1000.0)
 		},
 	)
 }

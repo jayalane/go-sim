@@ -10,8 +10,8 @@ import (
 
 // RemoteCall is an endpoint and params.
 type RemoteCall struct {
-	endpoint string
-	params   map[string]string
+	Endpoint string
+	Params   map[string]string
 }
 
 // RemoteCallFuncType is a callback to filter out remote calls based on params.
@@ -52,16 +52,16 @@ func (r *RemoteCall) MakeCall(n *Node, oldC *Call) *Call {
 	count.IncrSyncSuffix("remote_call_generated", n.name)
 
 	c := Call{}
-	c.reqID = IncrCallNumber()
+	c.ReqID = IncrCallNumber()
 	c.caller = n
-	c.timeoutMs = 90.0
-	c.wakeup = Milliseconds(n.loop.GetTime() + 5.0) // nolint:gomnd //TBD
-	c.endPoint = r.endpoint
+	c.TimeoutMs = 90.0
+	c.Wakeup = Milliseconds(n.loop.GetTime() + 5.0) // nolint:gomnd //TBD
+	c.Endpoint = r.Endpoint
 
-	if oldC.params != nil {
-		c.params = oldC.params
+	if oldC.Params != nil {
+		c.Params = oldC.Params
 	} else {
-		c.params = r.params
+		c.Params = r.Params
 	}
 
 	return &c

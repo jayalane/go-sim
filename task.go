@@ -51,7 +51,7 @@ func (n *Node) handleTasks() {
 
 			n.HandleTask(task)
 			ml.La(n.name+": Handled task", task, "len is now",
-				len(n.tasks), "reqid", task.call.reqID, "from", task.call.caller.name)
+				len(n.tasks), "reqid", task.call.ReqID, "from", task.call.caller.name)
 
 			continue
 		}
@@ -65,7 +65,7 @@ func (n *Node) handleTasks() {
 
 // HandleTask for node reads the app config and generates the work.
 func (n *Node) HandleTask(t *Task) {
-	ml.La(n.name+": Got a task to do", *t, t.call.reqID, t.call.caller.name)
+	ml.La(n.name+": Got a task to do", *t, t.call.ReqID, t.call.caller.name)
 
 	if t.later != nil {
 		t.later()
@@ -77,7 +77,7 @@ func (n *Node) HandleTask(t *Task) {
 	if t.nextTask != nil {
 		ml.La(n.name + ": another task to do")
 	} else {
-		ml.La(n.name+": last task, send result", "reqid", t.call.reqID, t.call.caller.name)
+		ml.La(n.name+": last task, send result", "reqid", t.call.ReqID, t.call.caller.name)
 
 		r := Reply{}
 		p := rand.Float64() //nolint:gosec
