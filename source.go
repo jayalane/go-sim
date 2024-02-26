@@ -62,7 +62,7 @@ func (s *Source) GenerateEvent() {
 		) {
 			ml.La("Finished EVENT!", s.n.name, s.n.loop.GetTime(), n.name, r)
 			count.Incr("source_generated_finished")
-			count.MarkDistribution(s.n.name, s.n.loop.GetTime()-float64(c.startTime)/1000.0)
+			count.MarkDistribution(s.n.name, (s.n.loop.GetTime()-float64(c.startTime))/1000.0)
 		},
 	)
 }
