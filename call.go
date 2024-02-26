@@ -11,7 +11,7 @@ import (
 )
 
 // HandleReply type is a callback to process the reply from a call.
-type HandleReply func(*Node, *Reply)
+type handleReply func(*node, *Reply)
 
 // Call is a structure to track a remote call.
 type Call struct {
@@ -25,7 +25,7 @@ type Call struct {
 	// id2        uint64
 	Params map[string]string
 	// connection *Connection
-	caller *Node
+	caller *node
 }
 
 var (
@@ -43,8 +43,8 @@ func IncrCallNumber() int {
 	return a
 }
 
-// SendCall sends the call to the callee node channel.
-func (c *Call) SendCall(callee *Node, f HandleReply) {
+// sendCall sends the call to the callee node channel.
+func (c *Call) sendCall(callee *node, f handleReply) {
 	reqID := IncrCallNumber()
 	c.ReqID = reqID
 	c.caller.pendingCallMapMu.Lock()

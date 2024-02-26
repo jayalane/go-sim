@@ -16,9 +16,9 @@ import (
 // CallCB allows LB to override node.
 type CallCB func(c *Call)
 
-// Node is a simulation particle that
-// can take in or emit work; it is a Node.
-type Node struct {
+// node is a simulation particle that
+// can take in or emit work; it is a node.
+type node struct {
 	loop             *Loop
 	callCh           chan *Call
 	msCh             chan *sync.WaitGroup
@@ -41,12 +41,12 @@ type pendingCall struct {
 	//	reqID int
 	reply *Reply
 	call  *Call
-	f     HandleReply
+	f     handleReply
 }
 
 // InitCallMap inits the pending call hash and
 // starts a go routine to listen.
-func (n *Node) InitCallMap() {
+func (n *node) initCallMap() {
 	n.replyCh = make(chan *Reply, bufferSizes)
 	n.pendingCallMapMu.Lock()
 	n.pendingCallMap = make(map[int]*pendingCall)
@@ -84,7 +84,7 @@ func (n *Node) InitCallMap() {
 	}()
 }
 
-func (n *Node) addCall(j *Call) {
+func (n *node) addCall(j *Call) {
 	n.callsMu.Lock()
 	defer n.callsMu.Unlock()
 
@@ -98,7 +98,7 @@ func (n *Node) addCall(j *Call) {
 	heap.Push(&n.calls, i)
 }
 
-func (n *Node) addTask(t *Task) {
+func (n *node) addTask(t *Task) {
 	n.tasksMu.Lock()
 	defer n.tasksMu.Unlock()
 
@@ -113,7 +113,7 @@ func (n *Node) addTask(t *Task) {
 }
 
 // HandleCall processes an incoming call.
-func (n *Node) HandleCall(c *Call) {
+func (n *node) handleCall(c *Call) {
 	ml.La(n.name+": Got an incoming call:", c, n.name, c.ReqID)
 	tasks := make([]Task, len(n.App.Stages))
 
@@ -156,9 +156,9 @@ func (n *Node) HandleCall(c *Call) {
 				newCall := rc.MakeCall(n, c)
 				lb := n.loop.GetLB(rc.Endpoint + "-lb")
 
-				newCall.SendCall(&lb.n,
+				newCall.sendCall(&lb.n,
 					func(
-						n *Node,
+						n *node,
 						r *Reply,
 					) {
 						ml.La(n.name+": Got a reply", *r)
@@ -181,7 +181,7 @@ func (n *Node) HandleCall(c *Call) {
 	}
 }
 
-func (n *Node) handleCalls() {
+func (n *node) handleCalls() {
 	now := n.loop.GetTime()
 	n.callsMu.Lock()
 	defer n.callsMu.Unlock()
@@ -212,7 +212,7 @@ func (n *Node) handleCalls() {
 				n.callCB(call)
 			} else {
 				ml.La(n.name+": got call for node", call.Params, call.ReqID, call.caller.name)
-				n.HandleCall(call)
+				n.handleCall(call)
 			}
 
 			ml.La(n.name+": Handled call",
@@ -229,7 +229,7 @@ func (n *Node) handleCalls() {
 	}
 }
 
-func (n *Node) runner() {
+func (n *node) runner() {
 	ml.La(n.name+": Starting runner goid", goid())
 
 	if n.name == "" {
@@ -262,17 +262,12 @@ func (n *Node) runner() {
 	}
 }
 
-// GetNode returns the Node struct for this interface.
-func (n *Node) GetNode() *Node {
-	return n
-}
-
 // Run starts the goroutine for this node
 // it is getting the init time stuff also.
-func (n *Node) Run() {
+func (n *node) run() {
 	ml.La(n.name, ": Doing Run/Init", goid())
 
-	n.InitCallMap()
+	n.initCallMap()
 
 	n.callCh = make(chan *Call, bufferSizes) // ?
 	n.done = make(chan bool, smallChannelSize)
@@ -286,11 +281,11 @@ func (n *Node) Run() {
 }
 
 // NextMillisecond runs all the work due in the next ms.
-func (n *Node) NextMillisecond() {
+func (n *node) nextMillisecond() {
 	ml.La(n.name+":  running", n.loop.GetTime())
 }
 
-// GenerateEvent does nothing for a base node.
-func (n *Node) GenerateEvent() {
+// generateEvent does nothing for a base node.
+func (n *node) generateEvent() {
 	ml.La("Node", n.name, "has no events to generate")
 }

@@ -22,33 +22,28 @@ type LbConf struct {
 
 // LB is a load balancer.
 type LB struct {
-	n            Node
-	appInstances []*Node
+	n            node
+	appInstances []*node
 	lastSent     int
-}
-
-// GetNode returns the Node struct for this interface.
-func (lb *LB) GetNode() *Node {
-	return &lb.n
 }
 
 // Run starts the goroutine for this node.
 func (lb *LB) Run() {
-	lb.n.Run()
+	lb.n.run()
 }
 
 // NextMillisecond runs all the work due in the next ms.
 func (lb *LB) NextMillisecond() {
-	lb.n.NextMillisecond()
+	lb.n.nextMillisecond()
 }
 
 // GenerateEvent does nothing for an LB.
 func (lb *LB) GenerateEvent() {
-	lb.n.GenerateEvent()
+	lb.n.generateEvent()
 }
 
-// HandleCall just round robin forwards for an LB.
-func (lb *LB) HandleCall(c *Call) {
+// handleCall just round robin forwards for an LB.
+func (lb *LB) handleCall(c *Call) {
 	ml.La(lb.n.name+": LB got an Incoming call:", c, c.ReqID, c.caller.name)
 
 	lb.lastSent++
@@ -56,14 +51,14 @@ func (lb *LB) HandleCall(c *Call) {
 
 	ml.La(lb.n.name+": sending call", c.ReqID, "to", lb.appInstances[lb.lastSent%poolSize].name)
 
-	newCall := lb.MakeCall(&lb.n, c, lb.appInstances[lb.lastSent%poolSize])
+	newCall := lb.makeCall(&lb.n, c, lb.appInstances[lb.lastSent%poolSize])
 	newCall.Params = c.Params
 	newCall.caller = &lb.n
 
 	count.IncrSuffix("lb_call_send", lb.n.name)
 
-	newCall.SendCall(lb.appInstances[lb.lastSent%poolSize],
-		func(n *Node, r *Reply) {
+	newCall.sendCall(lb.appInstances[lb.lastSent%poolSize],
+		func(n *node, r *Reply) {
 			count.Incr("lb_call_get_reply")
 			ml.La(n.name+": LB got a reply", *r, *c)
 			r.reqID = c.ReqID
@@ -72,8 +67,8 @@ func (lb *LB) HandleCall(c *Call) {
 	)
 }
 
-// MakeCall generates the call from an old call.
-func (lb *LB) MakeCall(n *Node, oldC *Call, destN *Node) *Call {
+// makeCall generates the call from an old call.
+func (lb *LB) makeCall(n *node, oldC *Call, destN *node) *Call {
 	c := Call{}
 
 	count.IncrSyncSuffix("remote_call_generated", n.name)
@@ -97,16 +92,16 @@ func MakeLB(lbConf *LbConf, l *Loop) *LB {
 	lb := LB{}
 	lb.n.App = lbConf.App
 	lb.n.name = lbConf.Name + lbSuffix
-	lb.n.callCB = lb.HandleCall
-	lb.appInstances = make([]*Node, lbConf.App.Size)
+	lb.n.callCB = lb.handleCall
+	lb.appInstances = make([]*node, lbConf.App.Size)
 
 	for i := uint16(0); i < lbConf.App.Size; i++ {
-		n := MakeApp(lbConf, l, "-"+strconv.FormatUint(uint64(i), 10))
+		n := makeApp(lbConf, l, "-"+strconv.FormatUint(uint64(i), 10))
 		lb.appInstances[i] = n
 	}
 
 	l.AddLB(lb.n.name, &lb) // this name is the lookup for the app
-	l.AddNode(&lb.n)        // this name is the lookup for the app
+	l.addNode(&lb.n)        // this name is the lookup for the app
 
 	return &lb
 }

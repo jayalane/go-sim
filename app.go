@@ -32,23 +32,29 @@ type AppConf struct {
 	Stages   []StageConf
 }
 
-// MakeApp takes and lb config and a loop and returns a
-// node integrated into that loop. LB config
+// MakeApp takes and lb config and a loop
+// integrates the new node into that loop. LB config
 // is needed so name is per pool not per app.
-func MakeApp(lb *LbConf, l *Loop, suffix string) *Node {
-	n := Node{}
+func MakeApp(lb *LbConf, l *Loop, suffix string) {
+	_ = makeApp(lb, l, suffix)
+}
+
+// makeApp takes and lb config and a loop and returns a
+// node integrated into that loop.
+func makeApp(lb *LbConf, l *Loop, suffix string) *node {
+	n := node{}
 
 	n.App = lb.App
 	n.name = lb.Name + suffix
 
-	l.AddNode(&n)
-	n.Run()
+	l.addNode(&n)
+	n.run()
 
 	return &n
 }
 
 // MakeCall generates the call from an old call.
-func (r *RemoteCall) MakeCall(n *Node, oldC *Call) *Call {
+func (r *RemoteCall) MakeCall(n *node, oldC *Call) *Call {
 	count.IncrSyncSuffix("remote_call_generated", n.name)
 
 	c := Call{}

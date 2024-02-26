@@ -16,7 +16,7 @@ type Loop struct {
 	time        float64
 	muTime      sync.RWMutex
 	sources     []*Source
-	nodes       []*Node
+	nodes       []*node
 	lbs         map[string]*LB
 	broadcaster *Broadcaster
 }
@@ -75,7 +75,7 @@ func (l *Loop) Run(length float64) {
 
 			go func() {
 				defer wg.Done()
-				n.NextMillisecond()
+				n.nextMillisecond()
 			}()
 		}
 
@@ -105,8 +105,8 @@ func NewLoop() *Loop {
 	return &loop
 }
 
-// AddNode adds a node into Loop's internals.
-func (l *Loop) AddNode(n *Node) {
+// addNode adds a node into Loop's internals.
+func (l *Loop) addNode(n *node) {
 	l.nodes = append(l.nodes, n)
 	n.loop = l
 }

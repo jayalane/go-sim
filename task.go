@@ -22,7 +22,7 @@ type Task struct {
 	nextTask *Task
 }
 
-func (n *Node) handleTasks() {
+func (n *node) handleTasks() {
 	now := n.loop.GetTime()
 	n.tasksMu.Lock()
 	defer n.tasksMu.Unlock()
@@ -63,8 +63,8 @@ func (n *Node) handleTasks() {
 	}
 }
 
-// HandleTask for node reads the app config and generates the work.
-func (n *Node) HandleTask(t *Task) {
+// handleTask for node reads the app config and generates the work.
+func (n *node) HandleTask(t *Task) {
 	ml.La(n.name+": Got a task to do", *t, t.call.ReqID, t.call.caller.name)
 
 	if t.later != nil {
