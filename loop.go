@@ -57,7 +57,6 @@ func (l *Loop) Run(length float64) {
 		ml.La("Main loop looping", l.GetTime(), "***********************************************", runtime.NumGoroutine(), goid())
 
 		for i, s := range l.sources {
-			s := s
 			fmt.Println("Call next ms sources", l.GetTime(), i, s.n.name)
 			wg.Add(1) // Add 1 for the first task
 
@@ -68,8 +67,6 @@ func (l *Loop) Run(length float64) {
 		}
 
 		for i, n := range l.nodes {
-			n := n
-
 			ml.La(n.name+": Calling next ms", l.time, "app", n.App.Name, "order", i)
 			wg.Add(1) // Add 1 for the first task.
 

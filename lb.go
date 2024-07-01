@@ -59,7 +59,7 @@ func (lb *LB) handleCall(c *Call) {
 
 	newCall.sendCall(lb.appInstances[lb.lastSent%poolSize],
 		func(n *node, r *Reply) {
-			count.Incr("lb_call_get_reply")
+			count.IncrSuffix("lb_call_get_reply", lb.n.name)
 			ml.La(n.name+": LB got a reply", *r, *c)
 			r.reqID = c.ReqID
 			c.caller.replyCh <- r
@@ -79,7 +79,7 @@ func (lb *LB) makeCall(n *node, oldC *Call, destN *node) *Call {
 
 	c.caller = n
 	c.TimeoutMs = 90.0
-	c.Wakeup = Milliseconds(n.loop.GetTime() + 5.0) //nolint:gomnd // TBD
+	c.Wakeup = Milliseconds(n.loop.GetTime() + networkDelayConst) // later better
 	c.Endpoint = destN.name
 	c.Params = oldC.Params
 
@@ -95,7 +95,7 @@ func MakeLB(lbConf *LbConf, l *Loop) *LB {
 	lb.n.callCB = lb.handleCall
 	lb.appInstances = make([]*node, lbConf.App.Size)
 
-	for i := uint16(0); i < lbConf.App.Size; i++ {
+	for i := uint16(0); i < lbConf.App.Size; i++ { //nolint:intrange
 		n := makeApp(lbConf, l, "-"+strconv.FormatUint(uint64(i), 10))
 		lb.appInstances[i] = n
 	}

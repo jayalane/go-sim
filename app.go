@@ -8,6 +8,10 @@ import (
 	count "github.com/jayalane/go-counter"
 )
 
+const (
+	networkDelayConst = 5.0 // later better method here
+)
+
 // RemoteCall is an endpoint and params.
 type RemoteCall struct {
 	Endpoint string
@@ -61,7 +65,7 @@ func (r *RemoteCall) MakeCall(n *node, oldC *Call) *Call {
 	c.ReqID = IncrCallNumber()
 	c.caller = n
 	c.TimeoutMs = 90.0
-	c.Wakeup = Milliseconds(n.loop.GetTime() + 5.0) // nolint:gomnd //TBD
+	c.Wakeup = Milliseconds(n.loop.GetTime() + networkDelayConst) // nolint:gomnd //TBD
 	c.Endpoint = r.Endpoint
 
 	if oldC.Params != nil {

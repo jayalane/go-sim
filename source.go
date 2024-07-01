@@ -11,6 +11,10 @@ import (
 	count "github.com/jayalane/go-counter"
 )
 
+const (
+	msInSec = 1000.0
+)
+
 // EventCB is called by a source to generate and send the new
 // work.
 type EventCB func(s *Source) *Call
@@ -33,7 +37,7 @@ type Source struct {
 	newEventCb EventCB // only for sources
 }
 
-// GetTime returns the loop time
+// GetTime returns the loop time.
 func (s *Source) GetTime() float64 {
 	return s.n.loop.GetTime()
 }
@@ -46,7 +50,7 @@ func (s *Source) Run() {
 
 // GenerateEvent for a source generates load.
 func (s *Source) GenerateEvent() {
-	count.Incr("source_generated")
+	count.IncrSuffix("source_generated", "source")
 
 	c := s.newEventCb(s)
 	c.caller = &s.n
@@ -61,8 +65,9 @@ func (s *Source) GenerateEvent() {
 			r *Reply,
 		) {
 			ml.La("Finished EVENT!", s.n.name, s.n.loop.GetTime(), n.name, r)
-			count.Incr("source_generated_finished")
-			count.MarkDistribution(s.n.name, (s.n.loop.GetTime()-float64(c.StartTime))/1000.0)
+			count.IncrSuffix("source_generated_finished", "source")
+			count.MarkDistributionSuffix(s.n.name, (s.n.loop.GetTime()-float64(c.StartTime))/msInSec,
+				"source")
 		},
 	)
 }
@@ -97,7 +102,7 @@ func (s *Source) NextMillisecond() {
 		s.nextEvent = Milliseconds(timeToSleep) + s.nextEvent
 		ml.La(s.n.name+": Source sleeping for", timeToSleep, "ms", s.n.loop.GetTime())
 	}
-	count.MarkDistribution("eventsPerMs-"+s.n.name, numThisMs)
+	count.MarkDistributionSuffix("eventsPerMs-"+s.n.name, numThisMs, "source")
 }
 
 // MakeSource turns a source configuration into the source.

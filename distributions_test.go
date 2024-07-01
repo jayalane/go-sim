@@ -14,10 +14,11 @@ func TestDistribution(_ *testing.T) {
 		LogNormalCDF(2, 1),
 		ParetoCDF(5, 1),
 	} {
-		for x := 0; x < 1000; x++ {
+		for range 100 {
 			p := rand.Float64() //nolint:gosec
 			fmt.Printf("p is %f RV is %f\n", p, f(p))
 		}
+
 		fmt.Println("Next RV type")
 	}
 }

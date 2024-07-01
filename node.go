@@ -135,8 +135,6 @@ func (n *node) handleCall(c *Call) {
 			ml.La(n.name+": Running closure for task", h, c.Params, c.ReqID, c.caller.name)
 
 			for _, rc := range h.RemoteCalls {
-				rc := rc
-
 				if h.FilterCall != nil {
 					ml.La(n.name+": checking filter rule", c.Params, c.ReqID, c.caller.name)
 
@@ -171,11 +169,11 @@ func (n *node) handleCall(c *Call) {
 		}
 	}
 
-	for i := 0; i < len(tasks)-1; i++ {
+	for i := range len(tasks) - 1 {
 		tasks[i].nextTask = &tasks[i+1]
 	}
 
-	for i := 0; i < len(tasks); i++ {
+	for i := range len(tasks) {
 		ml.La(n.name+": adding task", tasks[i].wakeup, tasks[i].later, len(n.tasks))
 		n.addTask(&tasks[i])
 	}
