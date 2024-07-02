@@ -1,9 +1,9 @@
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/jayalane/go-counter v0.0.0-20240701011447-c401b9516859 h1:+NJxUuAMd9Cd+Ch5vgOIJEvVv0FRhs/UHn8GMfwJIHk=
-github.com/jayalane/go-counter v0.0.0-20240701011447-c401b9516859/go.mod h1:UljiSOhE0XxrhKIKw8CvrtVQo4cV71/08RzTDjYxdmk=
-github.com/jayalane/go-lll v0.0.0-20231116033444-c12e53c5e47a h1:0omFFiQz04d2sFnwQQY+mYHJpe/eThrX4N7lZMXn6x8=
-github.com/jayalane/go-lll v0.0.0-20231116033444-c12e53c5e47a/go.mod h1:JpmP6hDb3yF5STyrUmkwvVr+Dcgfi3yrA0zc9iq3+e0=
+github.com/jayalane/go-counter v0.0.0-20240702202244-b8ff926e735a h1:mzK1++DDzLlG/YCur9HXjNhHqhPRIzXLcl00gVhRdH0=
+github.com/jayalane/go-counter v0.0.0-20240702202244-b8ff926e735a/go.mod h1:UljiSOhE0XxrhKIKw8CvrtVQo4cV71/08RzTDjYxdmk=
+github.com/jayalane/go-lll v0.0.0-20240701032621-2f3552fc55a4 h1:Ma8spEciuPvSHlbrv3yvbrAFvAuIojZFgzwtWpM2BQU=
+github.com/jayalane/go-lll v0.0.0-20240701032621-2f3552fc55a4/go.mod h1:DEnfz7H4PilkrCTprFyxon3Xfm7KIRvuKeEt9sM9bLU=
 github.com/jonboulle/clockwork v0.4.0 h1:p4Cf1aMWXnXAUh8lVfewRBx1zaTSYKrKMF2g3ST4RZ4=
 github.com/jonboulle/clockwork v0.4.0/go.mod h1:xgRqUGwRcjKCO1vbZUEtSLrqKoPSsUpK7fnezOII0kc=
 github.com/lestrrat-go/envload v0.0.0-20180220234015-a3eb8ddeffcc h1:RKf14vYWi2ttpEmkA4aQ3j4u9dStX2t4M8UM6qqNsG8=
@@ -18,8 +18,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
-github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
-github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
+github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
+github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa h1:FRnLl4eNAQl8hwxVVC17teOw8kdjVDVAiFMtgUdTSRQ=
 golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa/go.mod h1:zk2irFbV9DP96SEBUUAy67IdHUaZuSnrz1n472HUCLE=
 gonum.org/v1/gonum v0.15.0 h1:2lYxjRbTYyxkJxlhC+LvJIx3SsANPdRybu1tGj9/OrQ=

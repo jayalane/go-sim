@@ -3,8 +3,8 @@ module github.com/jayalane/go-sim
 go 1.22.4
 
 require (
-	github.com/jayalane/go-counter v0.0.0-20240701011447-c401b9516859
-	github.com/jayalane/go-lll v0.0.0-20231116033444-c12e53c5e47a
+	github.com/jayalane/go-counter v0.0.0-20240702202244-b8ff926e735a
+	github.com/jayalane/go-lll v0.0.0-20240701032621-2f3552fc55a4
 	gonum.org/v1/gonum v0.15.0
 )
 
