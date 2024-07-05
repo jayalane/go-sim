@@ -1,9 +1,9 @@
 module github.com/jayalane/go-sim
 
-go 1.22.4
+go 1.22.5
 
 require (
-	github.com/jayalane/go-counter v0.0.0-20240702202244-b8ff926e735a
+	github.com/jayalane/go-counter v0.0.0-20240705210921-ef55ebe2f756
 	github.com/jayalane/go-lll v0.0.0-20240701032621-2f3552fc55a4
 	gonum.org/v1/gonum v0.15.0
 )
