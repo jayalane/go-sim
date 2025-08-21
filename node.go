@@ -152,6 +152,7 @@ func (n *node) handleCall(c *Call) {
 				count.IncrSyncSuffix("node_make_remote_call", n.name)
 				count.IncrSyncSuffix("node_make_remote_call_"+rc.Endpoint, n.name)
 				newCall := rc.MakeCall(n, c)
+				newCall.StartTime = Milliseconds(n.loop.GetTime())
 				lb := n.loop.GetLB(rc.Endpoint + "-lb")
 
 				newCall.sendCall(&lb.n,
@@ -160,8 +161,6 @@ func (n *node) handleCall(c *Call) {
 						r *Reply,
 					) {
 						ml.La(n.name+": Got a reply", *r)
-						count.IncrSyncSuffix("node_task_get_reply", n.name)
-						count.IncrSyncSuffix("node_task_get_reply_"+rc.Endpoint, n.name)
 					},
 				)
 			}

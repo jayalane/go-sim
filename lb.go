@@ -54,12 +54,17 @@ func (lb *LB) handleCall(c *Call) {
 	newCall := lb.makeCall(&lb.n, c, lb.appInstances[lb.lastSent%poolSize])
 	newCall.Params = c.Params
 	newCall.caller = &lb.n
+	newCall.StartTime = Milliseconds(lb.n.loop.GetTime())
 
 	count.IncrSuffix("lb_call_send", lb.n.name)
 
 	newCall.sendCall(lb.appInstances[lb.lastSent%poolSize],
 		func(n *node, r *Reply) {
+			currentTime := n.loop.GetTime()
+			latencyMs := float64(currentTime) - float64(r.call.StartTime)
+
 			count.IncrSuffix("lb_call_get_reply", lb.n.name)
+			count.MarkDistributionSuffix("lb_reply_latency_ms", latencyMs, lb.n.name)
 			ml.La(n.name+": LB got a reply", *r, *c)
 			r.reqID = c.ReqID
 			c.caller.replyCh <- r
