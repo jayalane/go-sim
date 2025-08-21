@@ -162,7 +162,6 @@ func (n *node) handleCall(c *Call) {
 						ml.La(n.name+": Got a reply", *r)
 						count.IncrSyncSuffix("node_task_get_reply", n.name)
 						count.IncrSyncSuffix("node_task_get_reply_"+rc.Endpoint, n.name)
-						n.replyCh <- r
 					},
 				)
 			}
