@@ -67,6 +67,32 @@ func (n *node) handleTasks() {
 func (n *node) HandleTask(t *Task) {
 	ml.La(n.name+": Got a task to do", *t, t.call.ReqID, t.call.caller.name)
 
+	// Check if node is available
+	if n.resources != nil && !n.IsAvailable() {
+		// Queue task for later processing
+		n.resources.mu.Lock()
+		n.resources.pendingWork = append(n.resources.pendingWork, t.call)
+		n.resources.mu.Unlock()
+		ml.La(n.name + ": Node down, queuing task for later")
+
+		return
+	}
+
+	// Consume CPU for local work
+	if n.resources != nil {
+		n.consumeCPUForLocalWork()
+
+		// Check if CPU delay should be applied
+		delay := n.calculateCPUDelay()
+		if delay > 0 {
+			ml.La(n.name+": CPU saturated, delaying task by", delay, "ms")
+			t.wakeup += Milliseconds(delay)
+			n.addTask(t) // Re-queue with delay
+
+			return
+		}
+	}
+
 	if t.later != nil {
 		t.later()
 		ml.La(n.name + ": ran closure")
@@ -78,6 +104,15 @@ func (n *node) HandleTask(t *Task) {
 		ml.La(n.name + ": another task to do")
 	} else {
 		ml.La(n.name+": last task, send result", "reqid", t.call.ReqID, t.call.caller.name)
+
+		// Consume network resources for reply
+		if n.resources != nil {
+			if err := n.consumeNetworkForReply(); err != nil {
+				ml.La(n.name+": Network resource error sending reply:", err.Error())
+
+				return
+			}
+		}
 
 		r := Reply{}
 		p := rand.Float64() //nolint:gosec

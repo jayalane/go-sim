@@ -25,15 +25,16 @@ type RemoteCallFuncType func(endpoint string, params map[string]string) bool
 type StageConf struct {
 	LocalWork   ModelCdf
 	FilterCall  RemoteCallFuncType
-	RemoteCalls []RemoteCall
+	RemoteCalls []*RemoteCall
 }
 
 // AppConf is the configuration of an application.
 type AppConf struct {
-	Name     string
-	Size     uint16
-	ReplyLen ModelCdf
-	Stages   []StageConf
+	Name      string
+	Size      uint16
+	ReplyLen  ModelCdf
+	Stages    []*StageConf
+	Resources *ResourceConfig // Optional resource configuration
 }
 
 // MakeApp takes and lb config and a loop
@@ -50,6 +51,9 @@ func makeApp(lb *LbConf, l *Loop, suffix string) *node {
 
 	n.App = lb.App
 	n.name = lb.Name + suffix
+
+	// Initialize resources with app configuration
+	n.initResources(lb.App.Resources)
 
 	l.addNode(&n)
 	n.run()

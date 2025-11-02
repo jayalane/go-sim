@@ -13,6 +13,10 @@ import (
 	count "github.com/jayalane/go-counter"
 )
 
+const (
+	oneHundred = 100
+)
+
 // CallCB allows LB to override node.
 type CallCB func(c *Call)
 
@@ -32,9 +36,8 @@ type node struct {
 	replyCh          chan *Reply
 	done             chan bool
 	name             string
-	//	resources        map[string]float64 // for limits later on
-	// stats            map[string]float64
-	App *AppConf
+	resources        *NodeResources // Resource utilization tracking
+	App              *AppConf
 }
 
 type pendingCall struct {
@@ -112,9 +115,77 @@ func (n *node) addTask(t *Task) {
 	heap.Push(&n.tasks, i)
 }
 
-// HandleCall processes an incoming call.
+// buildRemoteCallsFunc creates a closure for future work.
+func (n *node) buildRemoteCallsFunc(c *Call, h *StageConf) func() {
+	return func() {
+		count.IncrSyncSuffix("node_task_run", n.name)
+		ml.La(n.name+": Running closure for task", h, c.Params, c.ReqID, c.caller.name)
+
+		for _, rc := range h.RemoteCalls {
+			if h.FilterCall != nil {
+				ml.La(n.name+": checking filter rule", c.Params, c.ReqID, c.caller.name)
+
+				doCall := h.FilterCall(rc.Endpoint, c.Params)
+				if !doCall {
+					ml.La(n.name+": skipping", rc.Endpoint, "due to filter", c.ReqID, c.caller.name)
+					count.IncrSyncSuffix("node_task_remote_call_filter",
+						n.name)
+
+					continue
+				}
+			}
+
+			ml.La(n.name+": Fanning out to", rc.Endpoint, rc, c.ReqID, c.caller.name)
+			count.IncrSyncSuffix("node_make_remote_call", n.name)
+			count.IncrSyncSuffix("node_make_remote_call_"+rc.Endpoint, n.name)
+			newCall := rc.MakeCall(n, c)
+			newCall.StartTime = Milliseconds(n.loop.GetTime())
+			lb := n.loop.GetLB(rc.Endpoint + "-lb")
+
+			newCall.sendCall(&lb.n,
+				func(
+					n *node,
+					r *Reply,
+				) {
+					ml.La(n.name+": Got a reply", *r)
+				},
+			)
+		}
+	}
+}
+
+// handleCall processes an incoming call.
 func (n *node) handleCall(c *Call) {
 	ml.La(n.name+": Got an incoming call:", c, n.name, c.ReqID)
+
+	// Check if node is down
+	if n.resources != nil && !n.IsAvailable() {
+		// Queue call for later processing
+		n.resources.mu.Lock()
+		n.resources.pendingWork = append(n.resources.pendingWork, c)
+		n.resources.mu.Unlock()
+		ml.La(n.name + ": Node down, queuing call for later")
+
+		return
+	}
+
+	// Consume memory for new call
+	if n.resources != nil {
+		if err := n.consumeMemoryForCall(); err != nil {
+			ml.La(n.name+": Memory resource error:", err.Error())
+
+			return
+		}
+
+		// Consume network for incoming call
+		if err := n.consumeNetworkForCall(); err != nil {
+			ml.La(n.name+": Network resource error:", err.Error())
+			n.sendErrorReply(c, "Network capacity exceeded")
+
+			return
+		}
+	}
+
 	tasks := make([]Task, len(n.App.Stages))
 
 	for i, h := range n.App.Stages {
@@ -130,48 +201,14 @@ func (n *node) handleCall(c *Call) {
 			reqID:  c.ReqID,
 		}
 
-		tasks[i].later = func() {
-			count.IncrSyncSuffix("node_task_run", n.name)
-			ml.La(n.name+": Running closure for task", h, c.Params, c.ReqID, c.caller.name)
-
-			for _, rc := range h.RemoteCalls {
-				if h.FilterCall != nil {
-					ml.La(n.name+": checking filter rule", c.Params, c.ReqID, c.caller.name)
-
-					doCall := h.FilterCall(rc.Endpoint, c.Params)
-					if !doCall {
-						ml.La(n.name+": skipping", rc.Endpoint, "due to filter", c.ReqID, c.caller.name)
-						count.IncrSyncSuffix("node_task_remote_call_filter",
-							n.name)
-
-						continue
-					}
-				}
-
-				ml.La(n.name+": Fanning out to", rc.Endpoint, rc, c.ReqID, c.caller.name)
-				count.IncrSyncSuffix("node_make_remote_call", n.name)
-				count.IncrSyncSuffix("node_make_remote_call_"+rc.Endpoint, n.name)
-				newCall := rc.MakeCall(n, c)
-				newCall.StartTime = Milliseconds(n.loop.GetTime())
-				lb := n.loop.GetLB(rc.Endpoint + "-lb")
-
-				newCall.sendCall(&lb.n,
-					func(
-						n *node,
-						r *Reply,
-					) {
-						ml.La(n.name+": Got a reply", *r)
-					},
-				)
-			}
-		}
+		tasks[i].later = n.buildRemoteCallsFunc(c, h)
 	}
 
 	for i := range len(tasks) - 1 {
 		tasks[i].nextTask = &tasks[i+1]
 	}
 
-	for i := range len(tasks) {
+	for i := range tasks {
 		ml.La(n.name+": adding task", tasks[i].wakeup, tasks[i].later, len(n.tasks))
 		n.addTask(&tasks[i])
 	}
@@ -279,6 +316,22 @@ func (n *node) run() {
 // NextMillisecond runs all the work due in the next ms.
 func (n *node) nextMillisecond() {
 	ml.La(n.name+":  running", n.loop.GetTime())
+
+	// Update resource utilization
+	if n.resources != nil {
+		n.updateResources()
+
+		// Record metrics (need to lock for reading)
+		n.resources.mu.RLock()
+		cpuCurrent := n.resources.cpu.Current * oneHundred         // Convert to percentage (0-100)
+		memoryCurrent := n.resources.memory.Current * oneHundred   // Convert to percentage (0-100)
+		networkCurrent := n.resources.network.Current * oneHundred // Convert to percentage (0-100)
+		n.resources.mu.RUnlock()
+
+		count.MarkDistributionSuffix("cpu_utilization", cpuCurrent, n.name)
+		count.MarkDistributionSuffix("memory_utilization", memoryCurrent, n.name)
+		count.MarkDistributionSuffix("network_utilization", networkCurrent, n.name)
+	}
 }
 
 // generateEvent does nothing for a base node.

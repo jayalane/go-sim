@@ -102,6 +102,7 @@ func (s *Source) NextMillisecond() {
 		s.nextEvent = Milliseconds(timeToSleep) + s.nextEvent
 		ml.La(s.n.name+": Source sleeping for", timeToSleep, "ms", s.n.loop.GetTime())
 	}
+
 	count.MarkDistributionSuffix("eventsPerMs-"+s.n.name, numThisMs, "source")
 }
 

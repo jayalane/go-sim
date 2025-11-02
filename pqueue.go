@@ -14,18 +14,33 @@ type Item struct {
 	index int // The index of the item in the heap.
 }
 
-// A PQueue implements heap.Interface and holds Items.
+// PQueue implements heap.Interface and holds Items.
 type PQueue []*Item
 
-func (pq PQueue) Len() int { return len(pq) }
+func (pq *PQueue) Len() int {
+	if pq == nil {
+		panic("Taking len of uninited pqueue")
+	}
 
-func (pq PQueue) Less(i, j int) bool {
+	return len(*pq)
+}
+
+// Less is a comparitor.
+func (pq *PQueue) Less(i, j int) bool {
+	if pq == nil {
+		panic("comparing value for uninited pqueue")
+	}
 	// We want Pop to give us the highest, not lowest, priority so we use greater than here.
-	return pq[i].priority < pq[j].priority
+
+	return (*pq)[i].priority < (*pq)[j].priority
 }
 
 // Peak returns the next item to be.
 func (pq *PQueue) Peak() *Item {
+	if pq == nil {
+		panic("Peak fromo uninited pqueue")
+	}
+
 	if len(*pq) == 0 {
 		return nil
 	}
@@ -33,15 +48,23 @@ func (pq *PQueue) Peak() *Item {
 	return (*pq)[0]
 }
 
-func (pq PQueue) Swap(i, j int) {
-	pq[i], pq[j] = pq[j], pq[i]
-	pq[i].index = i
-	pq[j].index = j
+func (pq *PQueue) Swap(i, j int) {
+	if pq == nil {
+		panic("Swap to uninited pqueue")
+	}
+
+	(*pq)[i], (*pq)[j] = (*pq)[j], (*pq)[i]
+	(*pq)[i].index = i
+	(*pq)[j].index = j
 }
 
 // Push adds a value to the pqueue - called by
 // head.Interface.
 func (pq *PQueue) Push(x any) {
+	if pq == nil {
+		panic("Adding value to united pqueue")
+	}
+
 	n := len(*pq)
 
 	item, ok := x.(*Item)

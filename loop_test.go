@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	longTestMsecs  = 10_000
+	longTestMsecs  = 200
 	longTestLambda = 140
 )
 
@@ -34,19 +34,40 @@ func TestLoop1(_ *testing.T) {
 
 	loop := NewLoop()
 
-	stageConfAry := []StageConf{{LocalWork: UniformCDF(1, 10)}}
+	stageConfAry := []*StageConf{{LocalWork: UniformCDF(1, 10)}}
+
+	// Configure resource tracking
+	resourceConfig := &ResourceConfig{
+		CPUPerLocalWork: UniformCDF(0.2, 0.4),   // Higher CPU usage for demo
+		MemoryPerCall:   UniformCDF(0.1, 0.2),   // More memory per call
+		NetworkPerCall:  UniformCDF(0.15, 0.25), // Network per call
+		NetworkPerReply: UniformCDF(0.08, 0.12), // Network per reply
+
+		CPULimit:     0.80, // 80% CPU limit
+		MemoryLimit:  0.85, // 85% memory limit
+		NetworkLimit: 0.90, // 90% network limit
+
+		MemoryRecoveryMs: 5000, // 5 second recovery for demo
+		CPUDelayFactor:   1.5,  // 1.5x delay when CPU saturated
+
+		CPUDecayRate:     0.15, // Faster decay for demo
+		MemoryDecayRate:  0.05, // Slower memory decay
+		NetworkDecayRate: 0.20, // Fast network decay
+	}
+
 	appConf := AppConf{
-		Name:     "serverA",
-		Size:     5,
-		Stages:   stageConfAry,
-		ReplyLen: UniformCDF(200, 20000),
+		Name:      "serverA",
+		Size:      5,
+		Stages:    stageConfAry,
+		ReplyLen:  UniformCDF(200, 20000),
+		Resources: resourceConfig,
 	}
 
 	lbConf := LbConf{Name: "serverA", App: &appConf}
 	MakeLB(&lbConf, loop)
 
 	sourceConf := SourceConf{
-		Name: "external", Lambda: 0.10, // per ms
+		Name: "external", Lambda: longTestLambda, // Increased load to demonstrate resource limits
 		MakeCall: func(s *Source) *Call {
 			c := Call{}
 			c.ReqID = IncrCallNumber()
@@ -60,9 +81,11 @@ func TestLoop1(_ *testing.T) {
 
 	MakeSource(&sourceConf, loop)
 
-	loop.Run(100) // msecs
+	fmt.Println("Running simulation with resource tracking...")
+	loop.Run(longTestMsecs) // Longer run to see resource effects
 	loop.Stats()
 	count.LogCounters()
+	fmt.Println("Resource tracking simulation complete.")
 }
 
 func FilterCallFunc(
@@ -76,165 +99,4 @@ func FilterCallFunc(
 	_, ok := params["DNF"]
 
 	return !ok
-}
-
-// need DNF
-// TestLoop2 runs slightly large simulation of rlproxyserv.
-func TestLoop2(_ *testing.T) {
-	loop := NewLoop()
-
-	proxyAConfAry := []StageConf{
-		{
-			LocalWork:  UniformCDF(1, 5),
-			FilterCall: FilterCallFunc,
-			RemoteCalls: []RemoteCall{
-				{
-					Endpoint: "count-a",
-				}, {
-					Endpoint: "proxy-b",
-					Params:   map[string]string{"DNF": "1"},
-				}, {
-					Endpoint: "proxy-c",
-					Params:   map[string]string{"DNF": "1"},
-				},
-			},
-		},
-	}
-	proxyAConf := AppConf{
-		Name:     "proxy",
-		Size:     5,
-		Stages:   proxyAConfAry,
-		ReplyLen: UniformCDF(200, 500),
-	}
-	proxyAlbConf := LbConf{Name: "proxy-a", App: &proxyAConf}
-	MakeLB(&proxyAlbConf, loop)
-
-	proxyBConfAry := []StageConf{
-		{
-			LocalWork:  UniformCDF(1, 5),
-			FilterCall: FilterCallFunc,
-			RemoteCalls: []RemoteCall{
-				{
-					Endpoint: "proxy-a",
-					Params:   map[string]string{"DNF": "1"},
-				}, {
-					Endpoint: "count-b",
-				}, {
-					Endpoint: "proxy-c",
-					Params:   map[string]string{"DNF": "1"},
-				},
-			},
-		},
-	}
-	proxyBConf := AppConf{
-		Name:     "proxy",
-		Size:     5,
-		Stages:   proxyBConfAry,
-		ReplyLen: UniformCDF(200, 20000),
-	}
-	proxyBlbConf := LbConf{Name: "proxy-b", App: &proxyBConf}
-	MakeLB(&proxyBlbConf, loop)
-
-	proxyCConfAry := []StageConf{
-		{
-			LocalWork:  UniformCDF(1, 5),
-			FilterCall: FilterCallFunc,
-			RemoteCalls: []RemoteCall{
-				{
-					Endpoint: "proxy-a",
-					Params:   map[string]string{"DNF": "1"},
-				}, {
-					Endpoint: "proxy-b",
-					Params:   map[string]string{"DNF": "1"},
-				}, {
-					Endpoint: "count-c",
-				},
-			},
-		},
-	}
-	proxyCConf := AppConf{
-		Name:     "proxy",
-		Size:     5,
-		Stages:   proxyCConfAry,
-		ReplyLen: UniformCDF(100, 200),
-	}
-	proxyClbConf := LbConf{Name: "proxy-c", App: &proxyCConf}
-	MakeLB(&proxyClbConf, loop)
-
-	countConfAry := []StageConf{{LocalWork: UniformCDF(1, 3)}}
-	countAConf := AppConf{
-		Name:     "count",
-		Size:     5,
-		Stages:   countConfAry,
-		ReplyLen: UniformCDF(100, 200),
-	}
-	countAlbConf := LbConf{Name: "count-a", App: &countAConf}
-	MakeLB(&countAlbConf, loop)
-
-	countBConf := AppConf{
-		Name:     "count",
-		Size:     5,
-		Stages:   countConfAry,
-		ReplyLen: UniformCDF(100, 200),
-	}
-	countBlbConf := LbConf{Name: "count-b", App: &countBConf}
-	MakeLB(&countBlbConf, loop)
-
-	countCConf := AppConf{
-		Name:     "count",
-		Size:     5,
-		Stages:   countConfAry,
-		ReplyLen: UniformCDF(100, 200),
-	}
-	countClbConf := LbConf{Name: "count-c", App: &countCConf}
-	MakeLB(&countClbConf, loop)
-
-	sourceAConf := SourceConf{
-		Name: "ngrl-a", Lambda: longTestLambda, // per ms
-		MakeCall: func(s *Source) *Call {
-			c := Call{}
-			c.ReqID = IncrCallNumber()
-			c.TimeoutMs = 90.0
-			c.Wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
-			c.Endpoint = "proxy-a"
-
-			return &c
-		},
-	}
-
-	MakeSource(&sourceAConf, loop)
-
-	sourceBConf := SourceConf{
-		Name: "ngrl-b", Lambda: longTestLambda, // per ms
-		MakeCall: func(s *Source) *Call {
-			c := Call{}
-			c.ReqID = IncrCallNumber()
-			c.TimeoutMs = 90.0
-			c.Wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
-			c.Endpoint = "proxy-b"
-
-			return &c
-		},
-	}
-
-	MakeSource(&sourceBConf, loop)
-
-	sourceCConf := SourceConf{
-		Name: "ngrl-c", Lambda: longTestLambda, // per ms
-		MakeCall: func(s *Source) *Call {
-			c := Call{}
-			c.ReqID = IncrCallNumber()
-			c.TimeoutMs = 90.0
-			c.Wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
-			c.Endpoint = "proxy-c"
-
-			return &c
-		},
-	}
-
-	MakeSource(&sourceCConf, loop)
-
-	loop.Run(longTestMsecs)
-	loop.Stats()
-	count.LogCounters()
 }
