@@ -116,10 +116,10 @@ func (n *node) initResources(config *ResourceConfig) {
 // consumeResources attempts to consume the specified amount of a resource type.
 func (n *node) consumeResources(resType ResourceType, amount float64) error {
 	n.resources.mu.Lock()
-	defer n.resources.mu.Unlock()
 
 	if n.resources.isDown {
 		ml.La("node ", n.name, " is down until", n.resources.downUntil)
+		n.resources.mu.Unlock()
 
 		return errNodeDown
 	}
@@ -132,6 +132,7 @@ func (n *node) consumeResources(resType ResourceType, amount float64) error {
 	case network:
 		if n.resources.network.Current+amount > n.resources.network.Limit {
 			count.IncrSyncSuffix("node_network_saturated", n.name)
+			n.resources.mu.Unlock()
 
 			return errNodeDownNetwork
 		}
@@ -139,31 +140,38 @@ func (n *node) consumeResources(resType ResourceType, amount float64) error {
 		n.resources.network.Current = math.Min(1.0, n.resources.network.Current+amount)
 	}
 
-	return n.checkResourceLimits()
-}
+	needsOOMKill := n.resources.memory.Current > n.resources.memory.Limit
 
-// checkResourceLimits verifies resource limits and triggers appropriate responses.
-func (n *node) checkResourceLimits() error {
-	// Memory exhaustion - node goes down
-	if n.resources.memory.Current > n.resources.memory.Limit {
+	var oomErr error
+
+	if needsOOMKill {
 		n.resources.isDown = true
 		n.resources.downUntil = Milliseconds(n.loop.GetTime()) + n.resources.memoryRecoveryMs
-		n.clearPendingWork()
+		// Only clear pendingWork (safe under resources.mu)
+		n.resources.pendingWork = nil
+
 		count.IncrSyncSuffix("node_memory_exhaustion", n.name)
 		ml.La(n.name+": Memory exhausted, restarting in", n.resources.memoryRecoveryMs, "ms")
 
-		return errNodeDownMem
+		oomErr = errNodeDownMem
 	}
 
-	return nil
+	n.resources.mu.Unlock()
+
+	// Queue clearing happens at recovery time in updateResources().
+	// While the node is down, no new work is processed from queues.
+
+	return oomErr
 }
+
+// checkResourceLimits is no longer used; OOM detection is inline in consumeResources.
 
 // updateResources updates resource utilization each millisecond.
 func (n *node) updateResources() {
 	n.resources.mu.Lock()
-	defer n.resources.mu.Unlock()
 
 	currentTime := Milliseconds(n.loop.GetTime())
+	needsRecovery := false
 
 	// Check if node should come back online
 	if n.resources.isDown && currentTime >= n.resources.downUntil {
@@ -171,7 +179,8 @@ func (n *node) updateResources() {
 		n.resources.cpu.Current = 0
 		n.resources.memory.Current = 0
 		n.resources.network.Current = 0
-		n.restorePendingWork()
+		needsRecovery = true
+
 		count.IncrSyncSuffix("node_recovery", n.name)
 		ml.La(n.name + ": Node recovered from memory exhaustion")
 	}
@@ -187,6 +196,15 @@ func (n *node) updateResources() {
 	n.resources.cpu.Historical = append(n.resources.cpu.Historical, n.resources.cpu.Current)
 	n.resources.memory.Historical = append(n.resources.memory.Historical, n.resources.memory.Current)
 	n.resources.network.Historical = append(n.resources.network.Historical, n.resources.network.Current)
+
+	n.resources.mu.Unlock()
+
+	// At recovery time, clear stale queues and restore pending work
+	// outside of resources.mu to avoid deadlock
+	if needsRecovery {
+		n.clearQueues()
+		n.restorePendingWork()
+	}
 }
 
 // calculateCPUDelay returns delay in milliseconds if CPU is over limit.
@@ -205,12 +223,9 @@ func (n *node) calculateCPUDelay() float64 {
 	return 0
 }
 
-// clearPendingWork clears all pending work when memory exhausted.
-func (n *node) clearPendingWork() {
-	// Clear all pending work during memory exhaustion restart
-	n.resources.pendingWork = nil
-
-	// Clear task and call queues (simulating container restart)
+// clearQueues clears task, call, and outbound queues during OOM.
+// Must be called outside of resources.mu to avoid deadlock.
+func (n *node) clearQueues() {
 	n.tasksMu.Lock()
 	n.tasks = make(PQueue, 0)
 	n.tasksMu.Unlock()
@@ -219,17 +234,25 @@ func (n *node) clearPendingWork() {
 	n.calls = make(PQueue, 0)
 	n.callsMu.Unlock()
 
-	ml.La(n.name + ": Cleared all pending work due to memory exhaustion")
+	n.outboundMu.Lock()
+	n.outboundQueue = nil
+	n.outboundMu.Unlock()
+
+	ml.La(n.name + ": Cleared all queues due to memory exhaustion")
 }
 
 // restorePendingWork restores work that was queued during downtime.
+// Must be called outside of resources.mu to avoid deadlock with addCall.
 func (n *node) restorePendingWork() {
-	for _, call := range n.resources.pendingWork {
+	n.resources.mu.Lock()
+	pending := n.resources.pendingWork
+	n.resources.pendingWork = nil
+	n.resources.mu.Unlock()
+
+	for _, call := range pending {
 		n.addCall(call)
 		ml.La(n.name+": Restored pending call", call.ReqID)
 	}
-
-	n.resources.pendingWork = nil
 }
 
 // sendErrorReply sends an error response for rejected calls.

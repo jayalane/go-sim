@@ -16,6 +16,7 @@ const (
 type RemoteCall struct {
 	Endpoint string
 	Params   map[string]string
+	Retry    *RetryPolicy // Optional retry policy for this call
 }
 
 // RemoteCallFuncType is a callback to filter out remote calls based on params.

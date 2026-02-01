@@ -4,8 +4,8 @@
 // discrete event simulation and then run it to generate statistics
 package sim
 
-// OutboundCall represents a call queued for outbound delivery,
-// bundling the call with its target, callback, timing, and retry state.
+// OutboundCall represents a call queued at the sender waiting for
+// the callee to have capacity.
 type OutboundCall struct {
 	call       *Call
 	callee     *node
