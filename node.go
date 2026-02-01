@@ -37,6 +37,8 @@ type node struct {
 	done             chan bool
 	name             string
 	resources        *NodeResources // Resource utilization tracking
+	outboundQueue    []*OutboundCall
+	outboundMu       sync.Mutex
 	App              *AppConf
 }
 
@@ -115,6 +117,128 @@ func (n *node) addTask(t *Task) {
 	heap.Push(&n.tasks, i)
 }
 
+// tryAcceptCall atomically checks callee network capacity and isDown.
+// If the callee has room, it consumes network and pushes onto callCh.
+// Returns true if the call was accepted, false otherwise.
+func (n *node) tryAcceptCall(c *Call) bool {
+	if n.resources != nil {
+		n.resources.mu.RLock()
+		isDown := n.resources.isDown
+		n.resources.mu.RUnlock()
+
+		if isDown {
+			return false
+		}
+
+		if err := n.consumeNetworkForCall(); err != nil {
+			return false
+		}
+	}
+
+	select {
+	case n.callCh <- c:
+		count.IncrSyncSuffix("call_ch_sent", "call")
+
+		return true
+	default:
+		return false
+	}
+}
+
+// queueOutbound adds an outbound call to the sender's queue,
+// consuming sender memory for the queued call.
+func (n *node) queueOutbound(oc *OutboundCall) {
+	n.outboundMu.Lock()
+	n.outboundQueue = append(n.outboundQueue, oc)
+	n.outboundMu.Unlock()
+
+	// Consume sender memory for queued call
+	if n.resources != nil {
+		if err := n.consumeMemoryForCall(); err != nil {
+			ml.La(n.name+": Memory error queuing outbound call:", err.Error())
+		}
+	}
+
+	count.IncrSyncSuffix("outbound_queued", n.name)
+	ml.La(n.name+": Queued outbound call", oc.call.ReqID, "to", oc.callee.name)
+}
+
+// drainOutbound attempts to deliver queued outbound calls each tick.
+func (n *node) drainOutbound() {
+	n.outboundMu.Lock()
+
+	if len(n.outboundQueue) == 0 {
+		n.outboundMu.Unlock()
+
+		return
+	}
+
+	// Copy queue and release lock so tryAcceptCall doesn't deadlock
+	queue := n.outboundQueue
+	n.outboundQueue = nil
+	n.outboundMu.Unlock()
+
+	now := Milliseconds(n.loop.GetTime())
+	var remaining []*OutboundCall
+
+	for _, oc := range queue {
+		// Check retry backoff delay
+		if oc.retryState != nil && now < oc.retryState.nextRetryAt {
+			remaining = append(remaining, oc)
+
+			continue
+		}
+
+		// Check timeout
+		if oc.call.TimeoutMs > 0 && float64(now-oc.queuedAt) > oc.call.TimeoutMs {
+			// Timed out - send 503
+			n.sendErrorReply(oc.call, "Outbound call timed out")
+			count.IncrSyncSuffix("outbound_timeout", n.name)
+			ml.La(n.name+": Outbound call timed out", oc.call.ReqID)
+
+			continue
+		}
+
+		// Attempt delivery
+		if oc.callee.tryAcceptCall(oc.call) {
+			count.IncrSyncSuffix("outbound_delivered", n.name)
+			ml.La(n.name+": Delivered outbound call", oc.call.ReqID)
+
+			continue
+		}
+
+		// Delivery failed - handle retry
+		if oc.retryState == nil {
+			oc.retryState = &RetryState{
+				policy:  DefaultRetryPolicy(),
+				attempt: 0,
+			}
+		}
+
+		oc.retryState.attempt++
+
+		if oc.retryState.attempt > oc.retryState.policy.MaxRetries {
+			// Retry exhaustion - send 503
+			n.sendErrorReply(oc.call, "Outbound call retry exhausted")
+			count.IncrSyncSuffix("outbound_retry_exhausted", n.name)
+			ml.La(n.name+": Outbound call retry exhausted", oc.call.ReqID)
+
+			continue
+		}
+
+		delay := oc.retryState.policy.DelayForAttempt(oc.retryState.attempt)
+		oc.retryState.nextRetryAt = now + delay
+		remaining = append(remaining, oc)
+		count.IncrSyncSuffix("outbound_retry", n.name)
+	}
+
+	if len(remaining) > 0 {
+		n.outboundMu.Lock()
+		n.outboundQueue = append(n.outboundQueue, remaining...)
+		n.outboundMu.Unlock()
+	}
+}
+
 // buildRemoteCallsFunc creates a closure for future work.
 func (n *node) buildRemoteCallsFunc(c *Call, h *StageConf) func() {
 	return func() {
@@ -142,14 +266,19 @@ func (n *node) buildRemoteCallsFunc(c *Call, h *StageConf) func() {
 			newCall.StartTime = Milliseconds(n.loop.GetTime())
 			lb := n.loop.GetLB(rc.Endpoint + "-lb")
 
-			newCall.sendCall(&lb.n,
-				func(
-					n *node,
-					r *Reply,
-				) {
-					ml.La(n.name+": Got a reply", *r)
-				},
-			)
+			replyHandler := func(
+				n *node,
+				r *Reply,
+			) {
+				ml.La(n.name+": Got a reply", *r)
+			}
+
+			if rc.Retry != nil {
+				rs := &RetryState{policy: rc.Retry}
+				newCall.sendCallWithRetry(&lb.n, replyHandler, rs)
+			} else {
+				newCall.sendCall(&lb.n, replyHandler)
+			}
 		}
 	}
 }
@@ -158,29 +287,18 @@ func (n *node) buildRemoteCallsFunc(c *Call, h *StageConf) func() {
 func (n *node) handleCall(c *Call) {
 	ml.La(n.name+": Got an incoming call:", c, n.name, c.ReqID)
 
-	// Check if node is down
+	// Check if node is down - send error reply instead of queuing
 	if n.resources != nil && !n.IsAvailable() {
-		// Queue call for later processing
-		n.resources.mu.Lock()
-		n.resources.pendingWork = append(n.resources.pendingWork, c)
-		n.resources.mu.Unlock()
-		ml.La(n.name + ": Node down, queuing call for later")
+		n.sendErrorReply(c, "Node is down")
+		ml.La(n.name + ": Node down, sending error reply")
 
 		return
 	}
 
-	// Consume memory for new call
+	// Consume memory for new call (network already consumed in tryAcceptCall)
 	if n.resources != nil {
 		if err := n.consumeMemoryForCall(); err != nil {
 			ml.La(n.name+": Memory resource error:", err.Error())
-
-			return
-		}
-
-		// Consume network for incoming call
-		if err := n.consumeNetworkForCall(); err != nil {
-			ml.La(n.name+": Network resource error:", err.Error())
-			n.sendErrorReply(c, "Network capacity exceeded")
 
 			return
 		}
@@ -316,6 +434,9 @@ func (n *node) run() {
 // NextMillisecond runs all the work due in the next ms.
 func (n *node) nextMillisecond() {
 	ml.La(n.name+":  running", n.loop.GetTime())
+
+	// Drain outbound queue each tick
+	n.drainOutbound()
 
 	// Update resource utilization
 	if n.resources != nil {
