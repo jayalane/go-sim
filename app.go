@@ -14,9 +14,12 @@ const (
 
 // RemoteCall is an endpoint and params.
 type RemoteCall struct {
-	Endpoint string
-	Params   map[string]string
-	Retry    *RetryPolicy // Optional retry policy for this call
+	Endpoint    string
+	Params      map[string]string
+	Retry       *RetryPolicy // Optional retry policy for this call
+	CPUCost     ModelCdf     // Per-call CPU cost CDF (optional)
+	MemoryCost  ModelCdf     // Per-call memory cost CDF (optional)
+	NetworkCost ModelCdf     // Per-call network cost CDF (optional)
 }
 
 // RemoteCallFuncType is a callback to filter out remote calls based on params.
@@ -78,6 +81,11 @@ func (r *RemoteCall) MakeCall(n *node, oldC *Call) *Call {
 	} else {
 		c.Params = r.Params
 	}
+
+	// Propagate per-call cost CDFs
+	c.cpuCost = r.CPUCost
+	c.memoryCost = r.MemoryCost
+	c.networkCost = r.NetworkCost
 
 	return &c
 }

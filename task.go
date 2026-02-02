@@ -8,6 +8,8 @@ package sim
 import (
 	"container/heap"
 	"math/rand"
+
+	count "github.com/jayalane/go-counter"
 )
 
 type closure func()
@@ -80,15 +82,7 @@ func (n *node) HandleTask(t *Task) {
 
 	// Consume CPU for local work
 	if n.resources != nil {
-		n.consumeCPUForLocalWork()
-
-		// Check if CPU delay should be applied
-		delay := n.calculateCPUDelay()
-		if delay > 0 {
-			ml.La(n.name+": CPU saturated, delaying task by", delay, "ms")
-			t.wakeup += Milliseconds(delay)
-			n.addTask(t) // Re-queue with delay
-
+		if n.handleTaskCPU(t) {
 			return
 		}
 	}
@@ -122,4 +116,42 @@ func (n *node) HandleTask(t *Task) {
 		r.call = t.call
 		t.call.caller.replyCh <- &r
 	}
+}
+
+// handleTaskCPU consumes CPU and checks reject/delay limits.
+// Returns true if the task was handled (rejected or re-queued).
+func (n *node) handleTaskCPU(t *Task) bool {
+	n.consumeCPUForLocalWork()
+
+	// CPURejectLimit check - if CPU above reject threshold, send 503
+	if n.resources.config.CPURejectLimit > 0 {
+		n.resources.mu.RLock()
+		cpuCurrent := n.resources.cpu.Current
+		n.resources.mu.RUnlock()
+
+		if cpuCurrent >= n.resources.config.CPURejectLimit {
+			count.IncrSyncSuffix("node_cpu_reject", n.name)
+			ml.La(n.name+": CPU above reject limit, sending 503", cpuCurrent)
+			n.sendErrorReply(t.call, "CPU reject limit exceeded")
+
+			return true
+		}
+	}
+
+	// Check if CPU delay should be applied
+	delay := n.calculateCPUDelay()
+	if delay > 0 {
+		ml.La(n.name+": CPU saturated, delaying task by", delay, "ms")
+		t.wakeup += Milliseconds(delay)
+		n.addTask(t) // Re-queue with delay
+
+		// Consume memory for queued work (CPU saturation creates OOM pressure)
+		if err := n.consumeMemoryForQueuedCall(); err != nil {
+			ml.La(n.name+": Memory error for queued work:", err.Error())
+		}
+
+		return true
+	}
+
+	return false
 }

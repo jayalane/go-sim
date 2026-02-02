@@ -70,6 +70,12 @@ type ResourceConfig struct {
 	MemoryRecoveryMs Milliseconds // Time to restart after memory exhaustion
 	CPUDelayFactor   float64      // Multiplier for task delays when CPU saturated
 
+	// Queued call memory
+	MemoryPerQueuedCall ModelCdf // Memory consumed per queued call (CPU delay)
+
+	// CPU reject threshold
+	CPURejectLimit float64 // CPU level above which to reject with 503 (0 = disabled)
+
 	// Decay rates (per millisecond)
 	CPUDecayRate     float64 // How fast CPU usage decreases
 	MemoryDecayRate  float64 // How fast memory usage decreases
@@ -90,6 +96,9 @@ func DefaultResourceConfig() *ResourceConfig {
 
 		MemoryRecoveryMs: 15000, //nolint:mnd // 15 seconds to restart
 		CPUDelayFactor:   2.0,   //nolint:mnd // 2x delay when CPU saturated
+
+		MemoryPerQueuedCall: UniformCDF(0.02, 0.05), //nolint:mnd // 2-5% memory per queued call
+		CPURejectLimit:      0.99,                   //nolint:mnd // reject at 99% CPU
 
 		CPUDecayRate:     0.1,  //nolint:mnd // 10% decay per ms
 		MemoryDecayRate:  0.02, //nolint:mnd // 2% decay per ms (slower)
@@ -199,11 +208,10 @@ func (n *node) updateResources() {
 
 	n.resources.mu.Unlock()
 
-	// At recovery time, clear stale queues and restore pending work
-	// outside of resources.mu to avoid deadlock
+	// At recovery time, perform full OOM cleanup outside of resources.mu
+	// to avoid deadlock. OOM kill = container death, no work survives.
 	if needsRecovery {
-		n.clearQueues()
-		n.restorePendingWork()
+		n.fullOOMCleanup()
 	}
 }
 
@@ -223,10 +231,43 @@ func (n *node) calculateCPUDelay() float64 {
 	return 0
 }
 
-// clearQueues clears task, call, and outbound queues during OOM.
+// fullOOMCleanup clears outboundQueue, pendingCallMap, and drains
+// callCh and replyCh buffers. This simulates full OOM-kill container reset.
 // Must be called outside of resources.mu to avoid deadlock.
-func (n *node) clearQueues() {
+func (n *node) fullOOMCleanup() {
+	// Clear outbound queue
+	n.outboundMu.Lock()
+	n.outboundQueue = nil
+	n.outboundMu.Unlock()
+
+	// Clear pending call map
+	n.pendingCallMapMu.Lock()
+	n.pendingCallMap = make(map[int]*pendingCall)
+	n.pendingCallMapMu.Unlock()
+
+	// Drain callCh buffer
+	for {
+		select {
+		case <-n.callCh:
+		default:
+			goto callsDrained
+		}
+	}
+callsDrained:
+
+	// Drain replyCh buffer
+	for {
+		select {
+		case <-n.replyCh:
+		default:
+			goto repliesDrained
+		}
+	}
+repliesDrained:
+
+	// Clear task and call queues
 	n.tasksMu.Lock()
+
 	n.tasks = make(PQueue, 0)
 	n.tasksMu.Unlock()
 
@@ -234,25 +275,7 @@ func (n *node) clearQueues() {
 	n.calls = make(PQueue, 0)
 	n.callsMu.Unlock()
 
-	n.outboundMu.Lock()
-	n.outboundQueue = nil
-	n.outboundMu.Unlock()
-
-	ml.La(n.name + ": Cleared all queues due to memory exhaustion")
-}
-
-// restorePendingWork restores work that was queued during downtime.
-// Must be called outside of resources.mu to avoid deadlock with addCall.
-func (n *node) restorePendingWork() {
-	n.resources.mu.Lock()
-	pending := n.resources.pendingWork
-	n.resources.pendingWork = nil
-	n.resources.mu.Unlock()
-
-	for _, call := range pending {
-		n.addCall(call)
-		ml.La(n.name+": Restored pending call", call.ReqID)
-	}
+	ml.La(n.name + ": Full OOM cleanup complete")
 }
 
 // sendErrorReply sends an error response for rejected calls.
@@ -325,6 +348,14 @@ func (n *node) consumeNetworkForCall() error {
 	networkCost := n.resources.config.NetworkPerCall(p)
 
 	return n.consumeResources(network, networkCost)
+}
+
+// consumeMemoryForQueuedCall consumes memory for a call queued due to CPU saturation.
+func (n *node) consumeMemoryForQueuedCall() error {
+	p := rand.Float64() //nolint:gosec
+	memoryCost := n.resources.config.MemoryPerQueuedCall(p)
+
+	return n.consumeResources(memory, memoryCost)
 }
 
 // consumeNetworkForReply consumes network resources for outgoing replies.
