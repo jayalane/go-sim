@@ -25,7 +25,9 @@ type Call struct {
 	// id2        uint64
 	Params map[string]string
 	// connection *Connection
-	caller *node
+	caller      *node
+	memoryCost  ModelCdf // Per-call memory cost CDF (overrides node default)
+	networkCost ModelCdf // Per-call network cost CDF (overrides node default)
 }
 
 var (

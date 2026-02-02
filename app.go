@@ -12,10 +12,20 @@ const (
 	networkDelayConst = 5.0 // later better method here
 )
 
+// RetryPolicy configures retry behavior for remote calls.
+type RetryPolicy struct {
+	MaxRetries int
+	BackoffMs  float64 // Base backoff between retries
+}
+
 // RemoteCall is an endpoint and params.
 type RemoteCall struct {
-	Endpoint string
-	Params   map[string]string
+	Endpoint    string
+	Params      map[string]string
+	Retry       *RetryPolicy
+	CPUCost     ModelCdf
+	MemoryCost  ModelCdf
+	NetworkCost ModelCdf
 }
 
 // RemoteCallFuncType is a callback to filter out remote calls based on params.
@@ -77,6 +87,10 @@ func (r *RemoteCall) MakeCall(n *node, oldC *Call) *Call {
 	} else {
 		c.Params = r.Params
 	}
+
+	// Propagate per-call cost CDFs
+	c.memoryCost = r.MemoryCost
+	c.networkCost = r.NetworkCost
 
 	return &c
 }

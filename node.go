@@ -169,16 +169,16 @@ func (n *node) handleCall(c *Call) {
 		return
 	}
 
-	// Consume memory for new call
+	// Consume memory for new call (use per-call cost if available)
 	if n.resources != nil {
-		if err := n.consumeMemoryForCall(); err != nil {
+		if err := n.consumeMemoryForCallWithCost(c); err != nil {
 			ml.La(n.name+": Memory resource error:", err.Error())
 
 			return
 		}
 
-		// Consume network for incoming call
-		if err := n.consumeNetworkForCall(); err != nil {
+		// Consume network for incoming call (use per-call cost if available)
+		if err := n.consumeNetworkForCallWithCost(c); err != nil {
 			ml.La(n.name+": Network resource error:", err.Error())
 			n.sendErrorReply(c, "Network capacity exceeded")
 

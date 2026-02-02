@@ -8,6 +8,8 @@ package sim
 import (
 	"container/heap"
 	"math/rand"
+
+	count "github.com/jayalane/go-counter"
 )
 
 type closure func()
@@ -80,6 +82,20 @@ func (n *node) HandleTask(t *Task) {
 
 	// Consume CPU for local work
 	if n.resources != nil {
+		// CPURejectLimit check - if CPU above reject threshold, send 503
+		n.resources.mu.RLock()
+		cpuCurrent := n.resources.cpu.Current
+		rejectLimit := n.resources.config.CPURejectLimit
+		n.resources.mu.RUnlock()
+
+		if rejectLimit > 0 && cpuCurrent > rejectLimit {
+			count.IncrSyncSuffix("node_cpu_reject", n.name)
+			ml.La(n.name+": CPU above reject limit", cpuCurrent, ">", rejectLimit, "- rejecting with 503")
+			n.sendErrorReply(t.call, "CPU capacity exceeded")
+
+			return
+		}
+
 		n.consumeCPUForLocalWork()
 
 		// Check if CPU delay should be applied
@@ -87,6 +103,14 @@ func (n *node) HandleTask(t *Task) {
 		if delay > 0 {
 			ml.La(n.name+": CPU saturated, delaying task by", delay, "ms")
 			t.wakeup += Milliseconds(delay)
+
+			// Consume memory for queued work (creates OOM pressure from CPU saturation)
+			if err := n.consumeMemoryForQueuedCall(); err != nil {
+				ml.La(n.name+": Memory error while queuing CPU-delayed task:", err.Error())
+
+				return
+			}
+
 			n.addTask(t) // Re-queue with delay
 
 			return

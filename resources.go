@@ -56,15 +56,17 @@ type NodeResources struct {
 // ResourceConfig defines how operations consume resources.
 type ResourceConfig struct {
 	// Base resource consumption per operation type
-	CPUPerLocalWork ModelCdf // CPU consumed per ms of local work
-	MemoryPerCall   ModelCdf // Memory consumed per active call
-	NetworkPerCall  ModelCdf // Network consumed per call (in+out)
-	NetworkPerReply ModelCdf // Network consumed per reply
+	CPUPerLocalWork    ModelCdf // CPU consumed per ms of local work
+	MemoryPerCall      ModelCdf // Memory consumed per active call
+	MemoryPerQueuedCall ModelCdf // Memory consumed per queued call (CPU-delayed)
+	NetworkPerCall     ModelCdf // Network consumed per call (in+out)
+	NetworkPerReply    ModelCdf // Network consumed per reply
 
 	// Resource limits (0.0 to 1.0)
-	CPULimit     float64
-	MemoryLimit  float64
-	NetworkLimit float64
+	CPULimit       float64
+	MemoryLimit    float64
+	NetworkLimit   float64
+	CPURejectLimit float64 // CPU level above which requests are rejected with 503
 
 	// Recovery settings
 	MemoryRecoveryMs Milliseconds // Time to restart after memory exhaustion
@@ -79,14 +81,16 @@ type ResourceConfig struct {
 // DefaultResourceConfig returns sensible default resource configuration.
 func DefaultResourceConfig() *ResourceConfig {
 	return &ResourceConfig{
-		CPUPerLocalWork: UniformCDF(0.1, 0.3),   //nolint:mnd // 10-30% CPU per ms
-		MemoryPerCall:   UniformCDF(0.05, 0.15), //nolint:mnd // 5-15% memory per call
-		NetworkPerCall:  UniformCDF(0.1, 0.2),   //nolint:mnd // 10-20% network per call
-		NetworkPerReply: UniformCDF(0.05, 0.1),  //nolint:mnd // 5-10% network per reply
+		CPUPerLocalWork:    UniformCDF(0.1, 0.3),   //nolint:mnd // 10-30% CPU per ms
+		MemoryPerCall:      UniformCDF(0.05, 0.15), //nolint:mnd // 5-15% memory per call
+		MemoryPerQueuedCall: UniformCDF(0.02, 0.05), //nolint:mnd // 2-5% memory per queued call
+		NetworkPerCall:     UniformCDF(0.1, 0.2),   //nolint:mnd // 10-20% network per call
+		NetworkPerReply:    UniformCDF(0.05, 0.1),  //nolint:mnd // 5-10% network per reply
 
-		CPULimit:     0.95, //nolint:mnd
-		MemoryLimit:  0.90, //nolint:mnd
-		NetworkLimit: 0.85, //nolint:mnd
+		CPULimit:       0.95, //nolint:mnd
+		MemoryLimit:    0.90, //nolint:mnd
+		NetworkLimit:   0.85, //nolint:mnd
+		CPURejectLimit: 0.99, //nolint:mnd // Reject new work above 99% CPU
 
 		MemoryRecoveryMs: 15000, //nolint:mnd // 15 seconds to restart
 		CPUDelayFactor:   2.0,   //nolint:mnd // 2x delay when CPU saturated
@@ -160,8 +164,9 @@ func (n *node) checkResourceLimits() error {
 
 // updateResources updates resource utilization each millisecond.
 func (n *node) updateResources() {
+	needsOOMCleanup := false
+
 	n.resources.mu.Lock()
-	defer n.resources.mu.Unlock()
 
 	currentTime := Milliseconds(n.loop.GetTime())
 
@@ -171,7 +176,7 @@ func (n *node) updateResources() {
 		n.resources.cpu.Current = 0
 		n.resources.memory.Current = 0
 		n.resources.network.Current = 0
-		n.restorePendingWork()
+		needsOOMCleanup = true
 		count.IncrSyncSuffix("node_recovery", n.name)
 		ml.La(n.name + ": Node recovered from memory exhaustion")
 	}
@@ -187,6 +192,13 @@ func (n *node) updateResources() {
 	n.resources.cpu.Historical = append(n.resources.cpu.Historical, n.resources.cpu.Current)
 	n.resources.memory.Historical = append(n.resources.memory.Historical, n.resources.memory.Current)
 	n.resources.network.Historical = append(n.resources.network.Historical, n.resources.network.Current)
+
+	n.resources.mu.Unlock()
+
+	// OOM cleanup must happen outside the lock to avoid deadlock
+	if needsOOMCleanup {
+		n.fullOOMCleanup()
+	}
 }
 
 // calculateCPUDelay returns delay in milliseconds if CPU is over limit.
@@ -205,12 +217,18 @@ func (n *node) calculateCPUDelay() float64 {
 	return 0
 }
 
-// clearPendingWork clears all pending work when memory exhausted.
+// clearPendingWork is a lightweight cleanup - just clears the pendingWork slice.
+// Called under resources.mu lock, so must not acquire other locks.
 func (n *node) clearPendingWork() {
-	// Clear all pending work during memory exhaustion restart
 	n.resources.pendingWork = nil
+	ml.La(n.name + ": Cleared pending work slice")
+}
 
-	// Clear task and call queues (simulating container restart)
+// fullOOMCleanup performs a full OOM-kill reset: clears outbound queues,
+// pending call map, and drains channel buffers. Must be called OUTSIDE
+// the resources.mu lock to avoid deadlock.
+func (n *node) fullOOMCleanup() {
+	// Clear task and call queues (simulating container death)
 	n.tasksMu.Lock()
 	n.tasks = make(PQueue, 0)
 	n.tasksMu.Unlock()
@@ -219,17 +237,31 @@ func (n *node) clearPendingWork() {
 	n.calls = make(PQueue, 0)
 	n.callsMu.Unlock()
 
-	ml.La(n.name + ": Cleared all pending work due to memory exhaustion")
-}
+	// Clear pending call map (all in-flight calls are lost)
+	n.pendingCallMapMu.Lock()
+	n.pendingCallMap = make(map[int]*pendingCall)
+	n.pendingCallMapMu.Unlock()
 
-// restorePendingWork restores work that was queued during downtime.
-func (n *node) restorePendingWork() {
-	for _, call := range n.resources.pendingWork {
-		n.addCall(call)
-		ml.La(n.name+": Restored pending call", call.ReqID)
+	// Drain channel buffers (OOM kill = container death, no work survives)
+	for {
+		select {
+		case <-n.callCh:
+		default:
+			goto doneCallCh
+		}
 	}
+doneCallCh:
+	for {
+		select {
+		case <-n.replyCh:
+		default:
+			goto doneReplyCh
+		}
+	}
+doneReplyCh:
 
-	n.resources.pendingWork = nil
+	count.IncrSyncSuffix("node_oom_full_cleanup", n.name)
+	ml.La(n.name + ": Full OOM cleanup complete - all queues and channels drained")
 }
 
 // sendErrorReply sends an error response for rejected calls.
@@ -296,12 +328,52 @@ func (n *node) consumeMemoryForCall() error {
 	return n.consumeResources(memory, memoryCost)
 }
 
+// consumeMemoryForCallWithCost uses the call's memoryCost CDF if set, else node default.
+func (n *node) consumeMemoryForCallWithCost(c *Call) error {
+	p := rand.Float64() //nolint:gosec
+
+	var memoryCost float64
+	if c.memoryCost != nil {
+		memoryCost = c.memoryCost(p)
+	} else {
+		memoryCost = n.resources.config.MemoryPerCall(p)
+	}
+
+	return n.consumeResources(memory, memoryCost)
+}
+
 // consumeNetworkForCall consumes network resources for incoming calls.
 func (n *node) consumeNetworkForCall() error {
 	p := rand.Float64() //nolint:gosec
 	networkCost := n.resources.config.NetworkPerCall(p)
 
 	return n.consumeResources(network, networkCost)
+}
+
+// consumeNetworkForCallWithCost uses the call's networkCost CDF if set, else node default.
+func (n *node) consumeNetworkForCallWithCost(c *Call) error {
+	p := rand.Float64() //nolint:gosec
+
+	var networkCost float64
+	if c.networkCost != nil {
+		networkCost = c.networkCost(p)
+	} else {
+		networkCost = n.resources.config.NetworkPerCall(p)
+	}
+
+	return n.consumeResources(network, networkCost)
+}
+
+// consumeMemoryForQueuedCall consumes memory for CPU-delayed queued work.
+func (n *node) consumeMemoryForQueuedCall() error {
+	if n.resources.config.MemoryPerQueuedCall == nil {
+		return nil
+	}
+
+	p := rand.Float64() //nolint:gosec
+	memoryCost := n.resources.config.MemoryPerQueuedCall(p)
+
+	return n.consumeResources(memory, memoryCost)
 }
 
 // consumeNetworkForReply consumes network resources for outgoing replies.
