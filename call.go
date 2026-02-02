@@ -6,8 +6,6 @@ package sim
 
 import (
 	"sync"
-
-	count "github.com/jayalane/go-counter"
 )
 
 // HandleReply type is a callback to process the reply from a call.
@@ -44,16 +42,41 @@ func IncrCallNumber() int {
 }
 
 // sendCall sends the call to the callee node channel.
+// On failure to deliver, the call is queued at the sender for retry.
 func (c *Call) sendCall(callee *node, f handleReply) {
 	reqID := IncrCallNumber()
 	c.ReqID = reqID
 	c.caller.pendingCallMapMu.Lock()
 	c.caller.pendingCallMap[c.ReqID] = &pendingCall{reply: nil, call: c, f: f}
 	c.caller.pendingCallMapMu.Unlock()
-	select {
-	case callee.callCh <- c:
-		count.IncrSyncSuffix("call_ch_sent", "call")
-	default:
-		panic("call channel full")
+
+	if !callee.tryAcceptCall(c) {
+		oc := &OutboundCall{
+			call:     c,
+			callee:   callee,
+			callback: f,
+			queuedAt: Milliseconds(c.caller.loop.GetTime()),
+		}
+		c.caller.queueOutbound(oc)
+	}
+}
+
+// sendCallWithRetry sends the call with an existing retry state.
+func (c *Call) sendCallWithRetry(callee *node, f handleReply, rs *RetryState) {
+	reqID := IncrCallNumber()
+	c.ReqID = reqID
+	c.caller.pendingCallMapMu.Lock()
+	c.caller.pendingCallMap[c.ReqID] = &pendingCall{reply: nil, call: c, f: f}
+	c.caller.pendingCallMapMu.Unlock()
+
+	if !callee.tryAcceptCall(c) {
+		oc := &OutboundCall{
+			call:       c,
+			callee:     callee,
+			callback:   f,
+			queuedAt:   Milliseconds(c.caller.loop.GetTime()),
+			retryState: rs,
+		}
+		c.caller.queueOutbound(oc)
 	}
 }
