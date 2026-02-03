@@ -67,7 +67,7 @@ func (l *Loop) Run(length float64) {
 		}
 
 		for i, n := range l.nodes {
-			ml.La(n.name+": Calling next ms", l.time, "app", n.App.Name, "order", i)
+			ml.La(n.name+": Calling next ms", l.GetTime(), "app", n.App.Name, "order", i)
 			wg.Add(1) // Add 1 for the first task.
 
 			go func() {
