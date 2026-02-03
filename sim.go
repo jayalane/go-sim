@@ -5,10 +5,15 @@
 package sim
 
 import (
+	"sync"
+
 	ll "github.com/jayalane/go-lll"
 )
 
-var ml *ll.Lll
+var (
+	ml     *ll.Lll
+	mlOnce sync.Once
+)
 
 const (
 	bufferSizes      = 1_000_000
@@ -23,7 +28,9 @@ type Milliseconds float64
 // Init must be called before any simulation stuff
 // it merely inits the logger.
 func Init() {
-	ml = ll.Init("SIM", "none")
+	mlOnce.Do(func() {
+		ml = ll.Init("SIM", "none")
+	})
 }
 
 // InitWithLogger is an init where youc an

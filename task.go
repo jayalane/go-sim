@@ -24,8 +24,13 @@ type Task struct {
 
 func (n *node) handleTasks() {
 	now := n.loop.GetTime()
+
+	// Collect ready tasks under the lock, then process without it.
+	// This avoids deadlock: HandleTask -> consumeCPUForLocalWork -> consumeResources
+	// -> clearPendingWork would try to re-acquire tasksMu if we held it.
+	var readyTasks []*Task
+
 	n.tasksMu.Lock()
-	defer n.tasksMu.Unlock()
 
 	ml.La(n.name+": handle tasks, time is ", n.loop.GetTime())
 
@@ -49,9 +54,7 @@ func (n *node) handleTasks() {
 				panic("task pqueue had non task")
 			}
 
-			n.HandleTask(task)
-			ml.La(n.name+": Handled task", task, "len is now",
-				len(n.tasks), "reqid", task.call.ReqID, "from", task.call.caller.name)
+			readyTasks = append(readyTasks, task)
 
 			continue
 		}
@@ -60,6 +63,13 @@ func (n *node) handleTasks() {
 			len(n.tasks))
 
 		break
+	}
+
+	n.tasksMu.Unlock()
+
+	for _, task := range readyTasks {
+		n.HandleTask(task)
+		ml.La(n.name+": Handled task", task, "reqid", task.call.ReqID, "from", task.call.caller.name)
 	}
 }
 

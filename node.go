@@ -216,8 +216,13 @@ func (n *node) handleCall(c *Call) {
 
 func (n *node) handleCalls() {
 	now := n.loop.GetTime()
+
+	// Collect ready calls under the lock, then process without it.
+	// This avoids deadlock: handleCall -> consumeResources -> clearPendingWork
+	// would try to re-acquire callsMu if we held it during processing.
+	var readyCalls []*Call
+
 	n.callsMu.Lock()
-	defer n.callsMu.Unlock()
 
 	for {
 		next := n.calls.Peak()
@@ -239,18 +244,7 @@ func (n *node) handleCalls() {
 				panic("Got non-call from call pqueue")
 			}
 
-			if n.callCB != nil {
-				ml.La(n.name+": Got call for LB", call.Params, call.ReqID, call.caller.name)
-				// poorly implemented bug riddled CLOS
-				n.callCB(call)
-			} else {
-				ml.La(n.name+": got call for node", call.Params, call.ReqID, call.caller.name)
-				n.handleCall(call)
-			}
-
-			ml.La(n.name+": Handled call",
-				call,
-				"len is now", len(n.calls))
+			readyCalls = append(readyCalls, call)
 
 			continue
 		}
@@ -259,6 +253,20 @@ func (n *node) handleCalls() {
 			len(n.calls))
 
 		break
+	}
+
+	n.callsMu.Unlock()
+
+	for _, call := range readyCalls {
+		if n.callCB != nil {
+			ml.La(n.name+": Got call for LB", call.Params, call.ReqID, call.caller.name)
+			n.callCB(call)
+		} else {
+			ml.La(n.name+": got call for node", call.Params, call.ReqID, call.caller.name)
+			n.handleCall(call)
+		}
+
+		ml.La(n.name+": Handled call", call)
 	}
 }
 
