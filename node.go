@@ -401,7 +401,7 @@ func (n *node) runner() {
 
 		case msWg := <-n.msCh:
 			n.callsMu.Lock()
-			ml.La(n.name+": Raw Node got ms", len(n.calls), len(n.tasks))
+			ml.La(n.name+": Raw Node got ms", len(n.calls))
 			n.callsMu.Unlock()
 			n.handleCalls()
 			n.handleTasks()

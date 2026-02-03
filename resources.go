@@ -245,25 +245,10 @@ func (n *node) fullOOMCleanup() {
 	n.pendingCallMap = make(map[int]*pendingCall)
 	n.pendingCallMapMu.Unlock()
 
-	// Drain callCh buffer
-	for {
-		select {
-		case <-n.callCh:
-		default:
-			goto callsDrained
-		}
-	}
-callsDrained:
-
-	// Drain replyCh buffer
-	for {
-		select {
-		case <-n.replyCh:
-		default:
-			goto repliesDrained
-		}
-	}
-repliesDrained:
+	// Note: we do NOT drain callCh/replyCh here because the runner
+	// goroutine reads from them concurrently. The runner already checks
+	// IsAvailable() and will send error replies for calls arriving
+	// while the node is down.
 
 	// Clear task and call queues
 	n.tasksMu.Lock()
