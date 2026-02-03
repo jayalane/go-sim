@@ -160,8 +160,9 @@ func (n *node) checkResourceLimits() error {
 
 // updateResources updates resource utilization each millisecond.
 func (n *node) updateResources() {
+	var pendingWork []*Call
+
 	n.resources.mu.Lock()
-	defer n.resources.mu.Unlock()
 
 	currentTime := Milliseconds(n.loop.GetTime())
 
@@ -171,7 +172,9 @@ func (n *node) updateResources() {
 		n.resources.cpu.Current = 0
 		n.resources.memory.Current = 0
 		n.resources.network.Current = 0
-		n.restorePendingWork()
+		// Collect pending work to restore outside the lock.
+		pendingWork = n.resources.pendingWork
+		n.resources.pendingWork = nil
 		count.IncrSyncSuffix("node_recovery", n.name)
 		ml.La(n.name + ": Node recovered from memory exhaustion")
 	}
@@ -187,6 +190,14 @@ func (n *node) updateResources() {
 	n.resources.cpu.Historical = append(n.resources.cpu.Historical, n.resources.cpu.Current)
 	n.resources.memory.Historical = append(n.resources.memory.Historical, n.resources.memory.Current)
 	n.resources.network.Historical = append(n.resources.network.Historical, n.resources.network.Current)
+
+	n.resources.mu.Unlock()
+
+	// Restore pending work without holding resources.mu to avoid deadlock with callsMu.
+	for _, call := range pendingWork {
+		n.addCall(call)
+		ml.La(n.name+": Restored pending call", call.ReqID)
+	}
 }
 
 // calculateCPUDelay returns delay in milliseconds if CPU is over limit.
@@ -220,16 +231,6 @@ func (n *node) clearPendingWork() {
 	n.callsMu.Unlock()
 
 	ml.La(n.name + ": Cleared all pending work due to memory exhaustion")
-}
-
-// restorePendingWork restores work that was queued during downtime.
-func (n *node) restorePendingWork() {
-	for _, call := range n.resources.pendingWork {
-		n.addCall(call)
-		ml.La(n.name+": Restored pending call", call.ReqID)
-	}
-
-	n.resources.pendingWork = nil
 }
 
 // sendErrorReply sends an error response for rejected calls.
