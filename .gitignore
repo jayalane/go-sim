@@ -2,3 +2,9 @@
 *test.log*
 fmtcoverage.html
 junit.xml
+
+# Gas Town (added by gt)
+.runtime/
+.claude/
+.logs/
+.beads/
