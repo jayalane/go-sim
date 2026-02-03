@@ -110,63 +110,73 @@ func initTest() {
 	Init()
 }
 
-// TestNetworkSaturationQueuing verifies that high network cost with a low
-// network limit causes calls to queue at the sender and eventually deliver
-// after network decay.
-func TestNetworkSaturationQueuing(t *testing.T) {
+// makeTestSourceConf creates a SourceConf with common test defaults.
+func makeTestSourceConf(name string, lambda float64, endpoint string, timeoutMs float64) SourceConf {
+	return SourceConf{
+		Name: name, Lambda: lambda,
+		MakeCall: func(s *Source) *Call {
+			c := Call{}
+			c.ReqID = IncrCallNumber()
+			c.TimeoutMs = timeoutMs
+			c.Wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
+			c.Endpoint = endpoint
+
+			return &c
+		},
+	}
+}
+
+// singleBackendTestRig creates an init'd loop with one LB+source and runs it.
+// Returns the loop after run+stats+log.
+func singleBackendTestRig(name string, size uint16, rc *ResourceConfig, lambda float64, ms float64, timeout float64) {
 	initTest()
 
 	loop := NewLoop()
 
-	// Backend with very tight network limit so calls get queued at sender
-	resourceConfig := &ResourceConfig{
+	appConf := AppConf{
+		Name:      name,
+		Size:      size,
+		Stages:    []*StageConf{{LocalWork: UniformCDF(1, 3)}},
+		ReplyLen:  UniformCDF(100, 200),
+		Resources: rc,
+	}
+
+	lbConf := LbConf{Name: name, App: &appConf}
+	MakeLB(&lbConf, loop)
+
+	sourceConf := makeTestSourceConf(name+"Source", lambda, name, timeout)
+	MakeSource(&sourceConf, loop)
+
+	loop.Run(ms)
+	loop.Stats()
+	count.LogCounters()
+}
+
+// TestNetworkSaturationQueuing verifies that high network cost with a low
+// network limit causes calls to queue at the sender and eventually deliver
+// after network decay.
+func TestNetworkSaturationQueuing(t *testing.T) {
+	rc := &ResourceConfig{
 		CPUPerLocalWork:     UniformCDF(0.01, 0.02),
 		MemoryPerCall:       UniformCDF(0.01, 0.02),
-		NetworkPerCall:      UniformCDF(0.4, 0.5), // High network cost per call
+		NetworkPerCall:      UniformCDF(0.4, 0.5),
 		NetworkPerReply:     UniformCDF(0.01, 0.02),
 		MemoryPerQueuedCall: UniformCDF(0.01, 0.02),
 
 		CPULimit:     0.95,
 		MemoryLimit:  0.95,
-		NetworkLimit: 0.30, // Very low network limit → saturates quickly
+		NetworkLimit: 0.30,
 
 		MemoryRecoveryMs: 5000,
 		CPUDelayFactor:   1.0,
-		CPURejectLimit:   0.0, // disabled
+		CPURejectLimit:   0.0,
 
 		CPUDecayRate:     0.1,
 		MemoryDecayRate:  0.05,
-		NetworkDecayRate: 0.20, // Moderate decay allows delivery over time
+		NetworkDecayRate: 0.20,
 	}
 
-	appConf := AppConf{
-		Name:      "netServer",
-		Size:      2,
-		Stages:    []*StageConf{{LocalWork: UniformCDF(1, 3)}},
-		ReplyLen:  UniformCDF(100, 200),
-		Resources: resourceConfig,
-	}
-
-	lbConf := LbConf{Name: "netServer", App: &appConf}
-	MakeLB(&lbConf, loop)
-
-	sourceConf := SourceConf{
-		Name: "netSource", Lambda: 50,
-		MakeCall: func(s *Source) *Call {
-			c := Call{}
-			c.ReqID = IncrCallNumber()
-			c.TimeoutMs = 500.0 // Long timeout to allow retries
-			c.Wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
-			c.Endpoint = "netServer"
-			return &c
-		},
-	}
-
-	MakeSource(&sourceConf, loop)
-
-	loop.Run(100)
-	loop.Stats()
-	count.LogCounters()
+	singleBackendTestRig("netServer", 2, rc, 50, 100, 500.0)
 
 	queued := count.ReadSync("outbound_queued")
 	delivered := count.ReadSync("outbound_delivered")
@@ -185,58 +195,27 @@ func TestNetworkSaturationQueuing(t *testing.T) {
 // TestOOMKillAndRecovery verifies that high memory per call with a low memory
 // limit triggers OOM kill events and that nodes recover afterward.
 func TestOOMKillAndRecovery(t *testing.T) {
-	initTest()
-
-	loop := NewLoop()
-
-	resourceConfig := &ResourceConfig{
+	rc := &ResourceConfig{
 		CPUPerLocalWork:     UniformCDF(0.01, 0.02),
-		MemoryPerCall:       UniformCDF(0.3, 0.5), // High memory per call
+		MemoryPerCall:       UniformCDF(0.3, 0.5),
 		NetworkPerCall:      UniformCDF(0.01, 0.02),
 		NetworkPerReply:     UniformCDF(0.01, 0.02),
 		MemoryPerQueuedCall: UniformCDF(0.01, 0.02),
 
 		CPULimit:     0.95,
-		MemoryLimit:  0.40, // Low memory limit → OOM quickly
+		MemoryLimit:  0.40,
 		NetworkLimit: 0.95,
 
-		MemoryRecoveryMs: 20, // Fast recovery so we see recovery events in short test
+		MemoryRecoveryMs: 20,
 		CPUDelayFactor:   1.0,
 		CPURejectLimit:   0.0,
 
 		CPUDecayRate:     0.1,
-		MemoryDecayRate:  0.01, // Slow memory decay to trigger OOM
+		MemoryDecayRate:  0.01,
 		NetworkDecayRate: 0.15,
 	}
 
-	appConf := AppConf{
-		Name:      "oomServer",
-		Size:      3,
-		Stages:    []*StageConf{{LocalWork: UniformCDF(1, 3)}},
-		ReplyLen:  UniformCDF(100, 200),
-		Resources: resourceConfig,
-	}
-
-	lbConf := LbConf{Name: "oomServer", App: &appConf}
-	MakeLB(&lbConf, loop)
-
-	sourceConf := SourceConf{
-		Name: "oomSource", Lambda: 80,
-		MakeCall: func(s *Source) *Call {
-			c := Call{}
-			c.ReqID = IncrCallNumber()
-			c.TimeoutMs = 500.0
-			c.Wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
-			c.Endpoint = "oomServer"
-			return &c
-		},
-	}
-
-	MakeSource(&sourceConf, loop)
-
-	loop.Run(150)
-	loop.Stats()
-	count.LogCounters()
+	singleBackendTestRig("oomServer", 3, rc, 80, 150, 500.0)
 
 	exhaustion := count.ReadSync("node_memory_exhaustion")
 	recovery := count.ReadSync("node_recovery")
@@ -338,18 +317,7 @@ func TestRetryExhaustion(t *testing.T) {
 	frontendLB := LbConf{Name: "frontend", App: &frontendConf}
 	MakeLB(&frontendLB, loop)
 
-	sourceConf := SourceConf{
-		Name: "retrySource", Lambda: 40,
-		MakeCall: func(s *Source) *Call {
-			c := Call{}
-			c.ReqID = IncrCallNumber()
-			c.TimeoutMs = 200.0
-			c.Wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
-			c.Endpoint = "frontend"
-			return &c
-		},
-	}
-
+	sourceConf := makeTestSourceConf("retrySource", 40, "frontend", 200.0)
 	MakeSource(&sourceConf, loop)
 
 	// Run the simulation - primary goal is no deadlock/panic
@@ -480,18 +448,7 @@ func TestPerCallCosts(t *testing.T) {
 	frontendLB := LbConf{Name: "pcFrontend", App: &frontendConf}
 	MakeLB(&frontendLB, loop)
 
-	sourceConf := SourceConf{
-		Name: "pcSource", Lambda: 30,
-		MakeCall: func(s *Source) *Call {
-			c := Call{}
-			c.ReqID = IncrCallNumber()
-			c.TimeoutMs = 200.0
-			c.Wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
-			c.Endpoint = "pcFrontend"
-			return &c
-		},
-	}
-
+	sourceConf := makeTestSourceConf("pcSource", 30, "pcFrontend", 200.0)
 	MakeSource(&sourceConf, loop)
 
 	loop.Run(100)
@@ -517,8 +474,8 @@ func TestCPUCascadeToOOM(t *testing.T) {
 		NetworkPerReply:     UniformCDF(0.001, 0.002),
 		MemoryPerQueuedCall: UniformCDF(0.05, 0.1), // Memory grows from queued work
 
-		CPULimit:     0.20,  // Low: 2+ tasks/ms pushes above limit
-		MemoryLimit:  0.80,  // Moderate memory limit
+		CPULimit:     0.20, // Low: 2+ tasks/ms pushes above limit
+		MemoryLimit:  0.80, // Moderate memory limit
 		NetworkLimit: 0.99,
 
 		MemoryRecoveryMs: 20,  // Fast recovery
@@ -541,18 +498,7 @@ func TestCPUCascadeToOOM(t *testing.T) {
 	lbConf := LbConf{Name: "cpuServer", App: &appConf}
 	MakeLB(&lbConf, loop)
 
-	sourceConf := SourceConf{
-		Name: "cpuSource", Lambda: 200, // Very high load to ensure multiple tasks/ms
-		MakeCall: func(s *Source) *Call {
-			c := Call{}
-			c.ReqID = IncrCallNumber()
-			c.TimeoutMs = 500.0
-			c.Wakeup = Milliseconds(s.n.loop.GetTime() + 5.0)
-			c.Endpoint = "cpuServer"
-			return &c
-		},
-	}
-
+	sourceConf := makeTestSourceConf("cpuSource", 200, "cpuServer", 500.0)
 	MakeSource(&sourceConf, loop)
 
 	loop.Run(50) // Short run to avoid accumulation hang

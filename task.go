@@ -54,14 +54,13 @@ func (n *node) handleTasks() {
 			}
 
 			n.HandleTask(task)
-			ml.La(n.name+": Handled task", task, "len is now",
-				len(n.tasks), "reqid", task.call.ReqID, "from", task.call.caller.name)
+			ml.La(n.name+": Handled task", task,
+				"reqid", task.call.ReqID, "from", task.call.caller.name)
 
 			continue
 		}
 		// like an else here thanks lint
-		ml.La(n.name+": Task too young", next.priority, "len is now",
-			len(n.tasks))
+		ml.La(n.name+": Task too young", next.priority)
 		n.tasksMu.Unlock()
 
 		break
