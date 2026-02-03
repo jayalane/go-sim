@@ -26,12 +26,12 @@ type Task struct {
 
 func (n *node) handleTasks() {
 	now := n.loop.GetTime()
-	n.tasksMu.Lock()
-	defer n.tasksMu.Unlock()
 
 	ml.La(n.name+": handle tasks, time is ", n.loop.GetTime())
 
 	for {
+		n.tasksMu.Lock()
+
 		next := n.tasks.Peak()
 		if next == nil {
 			if len(n.tasks) > 0 {
@@ -39,12 +39,14 @@ func (n *node) handleTasks() {
 			}
 
 			ml.La(n.name + ": no tasks")
+			n.tasksMu.Unlock()
 
 			break
 		}
 
 		if float64(next.priority) <= now {
 			item := heap.Pop(&n.tasks)
+			n.tasksMu.Unlock()
 
 			task, ok := item.(*Item).value.(*Task)
 			if !ok {
@@ -60,6 +62,7 @@ func (n *node) handleTasks() {
 		// like an else here thanks lint
 		ml.La(n.name+": Task too young", next.priority, "len is now",
 			len(n.tasks))
+		n.tasksMu.Unlock()
 
 		break
 	}
