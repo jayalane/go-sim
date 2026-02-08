@@ -17,6 +17,9 @@ import (
 
 // Simulation parameters - easy to tweak for experiments.
 const (
+	// CPU scaling factor - baseline CPUs for CPU-per-work calculations.
+	baselineCPUs = 2.0
+
 	// Duration and load.
 	simDurationMs = 5000 // 5 seconds of simulated time
 	loginLambda   = 5.0  // requests per second to /login (reduced)
@@ -35,14 +38,14 @@ const (
 
 	// Web tier: 2 CPU containers, can handle ~3 overlapping transactions.
 	// With 2 CPUs, each request uses ~33% of container CPU.
-	webCPUs           = 2.0  // CPUs per container
-	webMaxConcurrent  = 3.0  // max overlapping transactions per container
+	webCPUs           = 2.0 // CPUs per container
+	webMaxConcurrent  = 3.0 // max overlapping transactions per container
 	webCPULimit       = 1.0 / webMaxConcurrent
 	webMemoryLimit    = 0.40
 	webNetworkLimit   = 0.95 // high limit
 	webLocalWorkMin   = 2.0
 	webLocalWorkMax   = 5.0
-	webCPUPerWork     = 0.05 * (2.0 / webCPUs) // scales with CPU count
+	webCPUPerWork     = 0.05 * (baselineCPUs / webCPUs) // scales with CPU count
 	webMemoryPerCall  = 0.10
 	webNetworkPerCall = 0.01 // reduced for high fanout
 
@@ -55,7 +58,7 @@ const (
 	svcNetworkLimit   = 0.95 // high limit
 	svcLocalWorkMin   = 1.0
 	svcLocalWorkMax   = 3.0
-	svcCPUPerWork     = 0.01 * (2.0 / svcCPUs) // scales with CPU count
+	svcCPUPerWork     = 0.01 * (baselineCPUs / svcCPUs) // scales with CPU count
 	svcMemoryPerCall  = 0.005
 	svcNetworkPerCall = 0.001 // reduced for high fanout
 
@@ -68,7 +71,7 @@ const (
 	dbProxyNetworkLimit   = 0.95 // high limit
 	dbProxyLocalWorkMin   = 0.5
 	dbProxyLocalWorkMax   = 1.0
-	dbProxyCPUPerWork     = 0.001 * (2.0 / dbProxyCPUs) // scales with CPU count
+	dbProxyCPUPerWork     = 0.001 * (baselineCPUs / dbProxyCPUs) // scales with CPU count
 	dbProxyMemoryPerCall  = 0.0005
 	dbProxyNetworkPerCall = 0.0001 // reduced for high fanout
 
