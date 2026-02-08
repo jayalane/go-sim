@@ -27,7 +27,6 @@ type Call struct {
 	cpuCost     ModelCdf // Per-call CPU cost CDF (nil = use node default)
 	memoryCost  ModelCdf // Per-call memory cost CDF (nil = use node default)
 	networkCost ModelCdf // Per-call network cost CDF (nil = use node default)
-	caller        *node 
 }
 
 var (

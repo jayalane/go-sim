@@ -3,7 +3,6 @@
 package sim
 
 import (
-	"sync"
 	"container/heap"
 )
 
